@@ -1,20 +1,21 @@
-<!doctype html>
+
+<!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>ParkDhaka</title>
-    <link rel="stylesheet" href="/css/style.css" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ParkDhaka - Smart Parking Solution</title>
+    <link rel="stylesheet" href="css/style.css" />
   </head>
   <body>
     <header>
-      <h1>ParkDhaka</h1>
+      <h1>🅿️ ParkDhaka</h1>
     </header>
-    <main id="app">
-      <section id="status"></section>
-    </main>
-    <script src="/js/models/parkingModel.js"></script>
-    <script src="/js/views/parkingView.js"></script>
-    <script src="/js/controllers/parkingController.js"></script>
+    <div id="app"></div>
+
+    <!-- view-only script -->
+    <script src="js/views/parkingView.js"></script>
+    <!-- application logic (register/login/dashboard) -->
+    <script src="js/app.js"></script>
   </body>
 </html>

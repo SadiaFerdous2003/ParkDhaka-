@@ -53,9 +53,12 @@ const ParkingView = (function() {
   function renderDriverDashboard(data) {
     const html = `
       <div class="dashboard">
-        <header class="dashboard-header">
-          <h1>🚗 Driver Dashboard</h1>
-          <button id="logout-btn" class="btn btn-danger">Logout</button>
+        <header class="dashboard-header" style="display:flex;justify-content:space-between;align-items:center;background:white;padding:20px;border-radius:12px;margin-bottom:30px;box-shadow:0 4px 12px rgba(0,0,0,0.08);">
+          <h1 style="color:#0b5;font-size:32px;margin:0;">🚗 Driver Dashboard</h1>
+          <div style="display:flex;gap:10px;">
+            <button id="view-garages-btn" style="background:#007bff;color:white;padding:10px 20px;border:none;border-radius:5px;cursor:pointer;font-weight:bold;">View Garages</button>
+            <button id="logout-btn" style="background:#dc3545;color:white;padding:10px 20px;border:none;border-radius:5px;cursor:pointer;font-weight:bold;">Logout</button>
+          </div>
         </header>
         <div class="dashboard-content">
           <div class="card">
@@ -96,9 +99,12 @@ const ParkingView = (function() {
 
     const html = `
       <div class="dashboard">
-        <header class="dashboard-header">
-          <h1>🏢 Garage Host Dashboard</h1>
-          <button id="logout-btn" class="btn btn-danger">Logout</button>
+        <header class="dashboard-header" style="display:flex;justify-content:space-between;align-items:center;background:white;padding:20px;border-radius:12px;margin-bottom:30px;box-shadow:0 4px 12px rgba(0,0,0,0.08);">
+          <h1 style="color:#0b5;font-size:32px;margin:0;">🏢 Garage Host Dashboard</h1>
+          <div style="display:flex;gap:10px;">
+            <button id="view-garages-btn" style="background:#007bff;color:white;padding:10px 20px;border:none;border-radius:5px;cursor:pointer;font-weight:bold;">View Garages</button>
+            <button id="logout-btn" style="background:#dc3545;color:white;padding:10px 20px;border:none;border-radius:5px;cursor:pointer;font-weight:bold;">Logout</button>
+          </div>
         </header>
         <div class="dashboard-content">
           <div class="card">
@@ -158,9 +164,12 @@ const ParkingView = (function() {
   function renderAdminDashboard(data) {
     const html = `
       <div class="dashboard">
-        <header class="dashboard-header">
-          <h1>👨‍💼 Admin Dashboard</h1>
-          <button id="logout-btn" class="btn btn-danger">Logout</button>
+        <header class="dashboard-header" style="display:flex;justify-content:space-between;align-items:center;background:white;padding:20px;border-radius:12px;margin-bottom:30px;box-shadow:0 4px 12px rgba(0,0,0,0.08);">
+          <h1 style="color:#0b5;font-size:32px;margin:0;">👨‍💼 Admin Dashboard</h1>
+          <div style="display:flex;gap:10px;">
+            <button id="view-garages-btn" style="background:#007bff;color:white;padding:10px 20px;border:none;border-radius:5px;cursor:pointer;font-weight:bold;">View Garages</button>
+            <button id="logout-btn" style="background:#dc3545;color:white;padding:10px 20px;border:none;border-radius:5px;cursor:pointer;font-weight:bold;">Logout</button>
+          </div>
         </header>
         <div class="dashboard-content">
           <div class="card">
@@ -186,11 +195,60 @@ const ParkingView = (function() {
     if (errorEl) errorEl.textContent = message;
   }
 
+  function renderGarageListing(spaces) {
+    let garagesHtml = "<p>No garages listed yet.</p>";
+    
+    if (spaces && spaces.length > 0) {
+      garagesHtml = `<div class="garage-grid">
+        ${spaces
+          .map(s => {
+            const imgs = (s.images || []).map(u => `<img src="${u}" alt="garage" class="garage-thumb"/>`).join(" ");
+            const types = (s.vehicleTypes || []).join(", ");
+            const hours = s.availableHours ? `${s.availableHours.start} - ${s.availableHours.end}` : "Not specified";
+            const hostName = s.host ? s.host.name : "Unknown";
+            const hostEmail = s.host ? s.host.email : "";
+            
+            return `
+              <div class="garage-card">
+                <div class="garage-images">${imgs || "<p>No images</p>"}</div>
+                <div class="garage-info">
+                  <h3>${s.price}/hour</h3>
+                  <p><strong>Vehicle Types:</strong> ${types || "Not specified"}</p>
+                  <p><strong>Available Hours:</strong> ${hours}</p>
+                  <p><strong>Host:</strong> ${hostName}</p>
+                  <p><strong>Contact:</strong> ${hostEmail}</p>
+                  <p><strong>Listed:</strong> ${new Date(s.createdAt).toLocaleDateString()}</p>
+                </div>
+              </div>
+            `;
+          })
+          .join("")}
+      </div>`;
+    }
+
+    const html = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>🛝 All Listed Garages</h1>
+          <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
+          <button id="logout-btn" class="btn btn-danger">Logout</button>
+        </header>
+        <div class="garage-listing">
+          <h2>Available Garage Spaces</h2>
+          <p class="listing-count">Total: ${spaces ? spaces.length : 0} garage(s)</p>
+          ${garagesHtml}
+        </div>
+      </div>
+    `;
+    containerEl.innerHTML = html;
+  }
+
   return {
     renderAuthPage,
     renderDriverDashboard,
     renderGarageHostDashboard,
     renderAdminDashboard,
+    renderGarageListing,
     showError
   };
 })();

@@ -173,6 +173,32 @@ header h1 {
   margin: 0;
 }
 
+.header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.header-actions .btn {
+  width: auto;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  border: none;
+  border-radius: 5px;
+}
+
+.header-actions .btn-primary {
+  background: #007bff !important;
+  color: white !important;
+}
+
+.header-actions .btn-danger {
+  background: #dc3545 !important;
+  color: white !important;
+}
+
 .dashboard-content {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -285,6 +311,15 @@ header h1 {
     font-size: 24px;
   }
 
+  .header-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .header-actions .btn {
+    width: 100%;
+  }
+
   .btn-danger {
     width: 100%;
   }
@@ -300,4 +335,105 @@ header h1 {
   .card .stat {
     font-size: 32px;
   }
+}
+
+/* Dashboard Actions */
+.dashboard-actions {
+  margin-top: 30px;
+  text-align: center;
+}
+
+.dashboard-actions .btn {
+  width: auto;
+  padding: 12px 30px;
+}
+
+/* Garage Listing */
+.garage-listing {
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.garage-listing h2 {
+  color: #0b5;
+  margin-bottom: 10px;
+  font-size: 24px;
+}
+
+.listing-count {
+  color: #666;
+  margin-bottom: 25px;
+  font-size: 14px;
+}
+
+.garage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 25px;
+}
+
+.garage-card {
+  background: #f9f9f9;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.garage-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.garage-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 10px;
+  background: #eee;
+  min-height: 120px;
+  justify-content: center;
+  align-items: center;
+}
+
+.garage-thumb {
+  width: 80px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.garage-info {
+  padding: 20px;
+}
+
+.garage-info h3 {
+  color: #0b5;
+  font-size: 22px;
+  margin-bottom: 15px;
+}
+
+.garage-info p {
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #555;
+}
+
+.garage-info strong {
+  color: #333;
+}
+
+/* Secondary Button */
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+  padding: 10px 20px;
+  font-size: 14px;
+}
+
+.btn-secondary:hover {
+  background: #5a6268;
+  transform: translateY(-2px);
 }

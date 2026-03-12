@@ -71,6 +71,13 @@ router.delete(
   parkingController.deleteGarageSpace
 );
 
+// Get all garage spaces (for viewing all listed garages)
+router.get(
+  "/garage-spaces/all",
+  authMiddleware,
+  parkingController.getAllGarageSpaces
+);
+
 // dashboards
 router.get(
   "/dashboard/driver",

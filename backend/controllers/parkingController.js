@@ -126,3 +126,15 @@ exports.deleteGarageSpace = async (req, res) => {
     res.status(400).json({ message: err.message });
   }
 };
+
+// Get all garage spaces (for viewing all listed garages)
+exports.getAllGarageSpaces = async (req, res) => {
+  try {
+    const spaces = await GarageSpace.find()
+      .populate('host', 'name email')
+      .sort({ createdAt: -1 });
+    res.json(spaces);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};

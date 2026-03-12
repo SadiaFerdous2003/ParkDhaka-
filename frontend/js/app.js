@@ -236,6 +236,7 @@ const App = (function() {
         
         // Setup logout button
         setupLogoutButton();
+        setupViewGaragesButton();
       } else if (response.status === 401) {
         // Token expired or invalid
         logout();
@@ -255,6 +256,53 @@ const App = (function() {
     const logoutBtn = document.getElementById("logout-btn");
     if (logoutBtn) {
       logoutBtn.addEventListener("click", logout);
+    }
+  }
+
+  function setupViewGaragesButton() {
+    const viewGaragesBtn = document.getElementById("view-garages-btn");
+    if (viewGaragesBtn) {
+      viewGaragesBtn.addEventListener("click", loadGarageListing);
+    }
+
+    // Also handle back to dashboard button
+    const backBtn = document.getElementById("back-to-dashboard-btn");
+    if (backBtn) {
+      backBtn.addEventListener("click", () => {
+        loadDashboard(currentUser.role);
+      });
+    }
+  }
+
+  async function loadGarageListing() {
+    const token = localStorage.getItem("token");
+    
+    if (!token) {
+      showAuthPage();
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/garage-spaces/all`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (response.ok) {
+        const spaces = await response.json();
+        parkingView.renderGarageListing(spaces);
+        setupViewGaragesButton();
+      } else if (response.status === 401) {
+        logout();
+      } else {
+        const data = await response.json();
+        console.error("Error loading garage listing:", data.message);
+      }
+    } catch (error) {
+      console.error("Error loading garage listing:", error);
     }
   }
 

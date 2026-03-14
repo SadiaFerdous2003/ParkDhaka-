@@ -4,9 +4,10 @@ const App = (function() {
   const parkingView = ParkingView;
   let currentUser = null;
   let currentSpaces = []; // store fetched spaces for host
+  let currentBookings = []; // store fetched bookings for driver
   let hostListenerAdded = false;
 
-  // Initialize the application
+  // ── Initialize ──
   function init() {
     const token = localStorage.getItem("token");
     const savedUser = localStorage.getItem("user");
@@ -31,7 +32,6 @@ const App = (function() {
   }
 
   function setupAuthEventListeners() {
-    // Toggle between register and login
     const showLoginLink = document.getElementById("show-login-link");
     const showRegisterLink = document.getElementById("show-register-link");
     const registerSection = document.getElementById("register-section");
@@ -53,35 +53,19 @@ const App = (function() {
       });
     }
 
-    // Register button
     const registerBtn = document.getElementById("register-btn");
-    if (registerBtn) {
-      registerBtn.addEventListener("click", handleRegister);
-    }
+    if (registerBtn) registerBtn.addEventListener("click", handleRegister);
 
-    // Login button
     const loginBtn = document.getElementById("login-btn");
-    if (loginBtn) {
-      loginBtn.addEventListener("click", handleLogin);
-    }
+    if (loginBtn) loginBtn.addEventListener("click", handleLogin);
 
-    // Enter key support
     const registerForm = document.getElementById("register-section");
     const loginForm = document.getElementById("login-section");
-
-    if (registerForm) {
-      registerForm.addEventListener("keypress", (e) => {
-        if (e.key === "Enter") handleRegister();
-      });
-    }
-
-    if (loginForm) {
-      loginForm.addEventListener("keypress", (e) => {
-        if (e.key === "Enter") handleLogin();
-      });
-    }
+    if (registerForm) registerForm.addEventListener("keypress", (e) => { if (e.key === "Enter") handleRegister(); });
+    if (loginForm) loginForm.addEventListener("keypress", (e) => { if (e.key === "Enter") handleLogin(); });
   }
 
+  // ── Auth Handlers ──
   async function handleRegister() {
     const name = document.getElementById("register-name")?.value.trim();
     const email = document.getElementById("register-email")?.value.trim();
@@ -96,21 +80,14 @@ const App = (function() {
     try {
       const response = await fetch(`${API_BASE_URL}/register`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, password, role })
       });
-
       const data = await response.json();
-
       if (response.ok) {
-        // Store token and user
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
         currentUser = data.user;
-        
-        // Redirect to appropriate dashboard
         loadDashboard(data.user.role);
       } else {
         parkingView.showError("register", data.message || "Registration failed");
@@ -133,21 +110,14 @@ const App = (function() {
     try {
       const response = await fetch(`${API_BASE_URL}/login`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password })
       });
-
       const data = await response.json();
-
       if (response.ok) {
-        // Store token and user
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
         currentUser = data.user;
-        
-        // Redirect to appropriate dashboard
         loadDashboard(data.user.role);
       } else {
         parkingView.showError("login", data.message || "Login failed");
@@ -158,94 +128,69 @@ const App = (function() {
     }
   }
 
+  // ── Dashboard ──
   async function loadDashboard(role) {
     const token = localStorage.getItem("token");
-    
-    if (!token) {
-      showAuthPage();
-      return;
-    }
+    if (!token) { showAuthPage(); return; }
 
     let endpoint = "";
     switch (role) {
-      case "Driver":
-        endpoint = "/dashboard/driver";
-        break;
-      case "GarageHost":
-        endpoint = "/dashboard/garage-host";
-        break;
-      case "Admin":
-        endpoint = "/dashboard/admin";
-        break;
-      default:
-        parkingView.showError("auth", "Invalid role");
-        return;
+      case "Driver": endpoint = "/dashboard/driver"; break;
+      case "GarageHost": endpoint = "/dashboard/garage-host"; break;
+      case "Admin": endpoint = "/dashboard/admin"; break;
+      default: parkingView.showError("auth", "Invalid role"); return;
     }
 
     try {
-      console.log('loadDashboard: requesting', endpoint);
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: "GET",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
       });
 
       if (response.ok) {
         const data = await response.json();
-        
-        // if garage host we also fetch spaces
+
         if (role === "GarageHost") {
-          console.log('loadDashboard: role is GarageHost, fetching spaces');
           try {
             const spacesRes = await fetch(`${API_BASE_URL}/garage-spaces`, {
               method: "GET",
-              headers: {
-                "Authorization": `Bearer ${token}`,
-                "Content-Type": "application/json"
-              }
+              headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
             });
             let spaces = [];
-            if (spacesRes.ok) {
-              spaces = await spacesRes.json();
-            }
-            console.log('loadDashboard: spaces payload', spaces);
+            if (spacesRes.ok) spaces = await spacesRes.json();
             parkingView.renderGarageHostDashboard(data, spaces);
-            console.log('loadDashboard: rendered GarageHost dashboard, spaces count=', spaces.length);
             currentSpaces = spaces;
             setupGarageHostListeners();
           } catch (err) {
             console.error("Error loading garage spaces", err);
             currentSpaces = [];
             parkingView.renderGarageHostDashboard(data, []);
-            console.log('loadDashboard: rendered GarageHost dashboard with empty spaces');
             setupGarageHostListeners();
           }
-        } else {
-          // Render appropriate dashboard based on role
-          switch (role) {
-            case "Driver":
-              parkingView.renderDriverDashboard(data);
-              break;
-            case "Admin":
-              parkingView.renderAdminDashboard(data);
-              break;
-          }
+        } else if (role === "Driver") {
+          // Also fetch waitlist notifications
+          let waitlistEntries = [];
+          try {
+            const wRes = await fetch(`${API_BASE_URL}/waitlist/my`, {
+              method: "GET",
+              headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+            });
+            if (wRes.ok) waitlistEntries = await wRes.json();
+          } catch (e) { /* ignore */ }
+          parkingView.renderDriverDashboard(data, waitlistEntries);
+        } else if (role === "Admin") {
+          parkingView.renderAdminDashboard(data);
         }
-        
-        // Setup logout button
+
         setupLogoutButton();
         setupViewGaragesButton();
+        setupMyBookingsButton();
+        setupWaitlistActions();
       } else if (response.status === 401) {
-        // Token expired or invalid
         logout();
       } else if (response.status === 403) {
         parkingView.showError("auth", "Unauthorized - invalid role");
         logout();
-      } else {
-        const data = await response.json();
-        console.error("Dashboard error:", data.message);
       }
     } catch (error) {
       console.error("Dashboard load error:", error);
@@ -254,52 +199,65 @@ const App = (function() {
 
   function setupLogoutButton() {
     const logoutBtn = document.getElementById("logout-btn");
-    if (logoutBtn) {
-      logoutBtn.addEventListener("click", logout);
-    }
+    if (logoutBtn) logoutBtn.addEventListener("click", logout);
   }
 
   function setupViewGaragesButton() {
     const viewGaragesBtn = document.getElementById("view-garages-btn");
-    if (viewGaragesBtn) {
-      viewGaragesBtn.addEventListener("click", loadGarageListing);
-    }
+    if (viewGaragesBtn) viewGaragesBtn.addEventListener("click", loadGarageListing);
 
-    // Also handle back to dashboard button
     const backBtn = document.getElementById("back-to-dashboard-btn");
-    if (backBtn) {
-      backBtn.addEventListener("click", () => {
-        loadDashboard(currentUser.role);
+    if (backBtn) backBtn.addEventListener("click", () => loadDashboard(currentUser.role));
+  }
+
+  function setupMyBookingsButton() {
+    const btn = document.getElementById("my-bookings-btn");
+    if (btn) btn.addEventListener("click", loadMyBookings);
+  }
+
+  function setupWaitlistActions() {
+    // Dismiss waitlist notification
+    document.querySelectorAll(".btn-dismiss-waitlist").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        const token = localStorage.getItem("token");
+        try {
+          await fetch(`${API_BASE_URL}/waitlist/${id}`, {
+            method: "DELETE",
+            headers: { "Authorization": `Bearer ${token}` }
+          });
+          loadDashboard(currentUser.role);
+        } catch (e) { console.error(e); }
       });
-    }
+    });
+
+    // Book from waitlist notification
+    document.querySelectorAll(".btn-book-from-waitlist").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const spaceId = btn.dataset.spaceId;
+        handleBookNow(spaceId);
+      });
+    });
   }
 
   async function loadGarageListing() {
     const token = localStorage.getItem("token");
-    
-    if (!token) {
-      showAuthPage();
-      return;
-    }
+    if (!token) { showAuthPage(); return; }
 
     try {
       const response = await fetch(`${API_BASE_URL}/garage-spaces/all`, {
         method: "GET",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
       });
 
       if (response.ok) {
         const spaces = await response.json();
-        parkingView.renderGarageListing(spaces);
+        parkingView.renderGarageListing(spaces, currentUser?.role);
         setupViewGaragesButton();
+        setupLogoutButton();
+        setupBookNowButtons();
       } else if (response.status === 401) {
         logout();
-      } else {
-        const data = await response.json();
-        console.error("Error loading garage listing:", data.message);
       }
     } catch (error) {
       console.error("Error loading garage listing:", error);
@@ -313,19 +271,15 @@ const App = (function() {
     showAuthPage();
   }
 
-  // garage host helpers
+  // ── Garage Host Helpers ──
   function setupGarageHostListeners() {
     const addBtn = document.getElementById("add-space-btn");
     if (addBtn) addBtn.addEventListener("click", handleAddSpace);
 
-    // Use event delegation for edit/delete to ensure handlers attach after render
     function hostSpacesClickHandler(e) {
       const target = e.target;
-      if (target.matches('.edit-space-btn')) {
-        handleEditSpace(target.dataset.id);
-      } else if (target.matches('.delete-space-btn')) {
-        handleDeleteSpace(target.dataset.id);
-      }
+      if (target.matches('.edit-space-btn')) handleEditSpace(target.dataset.id);
+      else if (target.matches('.delete-space-btn')) handleDeleteSpace(target.dataset.id);
     }
 
     if (!hostListenerAdded) {
@@ -346,16 +300,9 @@ const App = (function() {
     const errorEl = document.getElementById("space-error");
     if (errorEl) errorEl.textContent = "";
 
-    if (isNaN(price)) {
-      if (errorEl) errorEl.textContent = "Valid price is required";
-      return;
-    }
+    if (isNaN(price)) { if (errorEl) errorEl.textContent = "Valid price is required"; return; }
 
-    const vehicleTypes = typesRaw
-      .split(",")
-      .map(s => s.trim())
-      .filter(Boolean);
-
+    const vehicleTypes = typesRaw.split(",").map(s => s.trim()).filter(Boolean);
     const files = fileInput?.files;
     const hasFiles = files && files.length > 0;
     const urlValue = urlInput?.value?.trim() || "";
@@ -363,63 +310,39 @@ const App = (function() {
 
     try {
       let res;
-      
       if (hasFiles) {
-        // Use multipart/form-data for file uploads
         const formData = new FormData();
         formData.append("price", price);
         formData.append("vehicleTypes", vehicleTypes.join(","));
         formData.append("availableHours", JSON.stringify({ start, end }));
-        
-        for (let i = 0; i < files.length; i++) {
-          formData.append("images", files[i]);
-        }
-        
+        for (let i = 0; i < files.length; i++) formData.append("images", files[i]);
         res = await fetch(`${API_BASE_URL}/garage-spaces`, {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${token}`
-          },
+          headers: { "Authorization": `Bearer ${token}` },
           body: formData
         });
       } else if (hasUrls) {
-        // Use JSON for URL-based images (backwards compatibility)
-        const images = urlValue
-          .split(",")
-          .map(s => s.trim())
-          .filter(Boolean);
-        
+        const images = urlValue.split(",").map(s => s.trim()).filter(Boolean);
         res = await fetch(`${API_BASE_URL}/garage-spaces`, {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
+          headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
           body: JSON.stringify({ images, price, vehicleTypes, availableHours: { start, end } })
         });
       } else {
-        // No images provided - still allow creating space
         res = await fetch(`${API_BASE_URL}/garage-spaces`, {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
+          headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
           body: JSON.stringify({ images: [], price, vehicleTypes, availableHours: { start, end } })
         });
       }
-      
       const data = await res.json();
       if (res.ok) {
-        // Clear form inputs
         if (fileInput) fileInput.value = "";
         if (urlInput) urlInput.value = "";
         document.getElementById("space-price").value = "";
         document.getElementById("space-vehicle-types").value = "";
         document.getElementById("space-hour-start").value = "";
         document.getElementById("space-hour-end").value = "";
-        
-        // reload dashboard to refresh numbers and list
         loadDashboard(currentUser.role);
       } else {
         if (errorEl) errorEl.textContent = data.message || "Failed to add space";
@@ -448,22 +371,12 @@ const App = (function() {
       const token = localStorage.getItem("token");
       const res = await fetch(`${API_BASE_URL}/garage-spaces/${id}`, {
         method: "PUT",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify(body)
       });
-      if (res.ok) {
-        loadDashboard(currentUser.role);
-      } else {
-        const data = await res.json();
-        alert(data.message || "Failed to update");
-      }
-    } catch (err) {
-      console.error("Edit space error", err);
-      alert("Network error");
-    }
+      if (res.ok) loadDashboard(currentUser.role);
+      else { const data = await res.json(); alert(data.message || "Failed to update"); }
+    } catch (err) { console.error("Edit space error", err); alert("Network error"); }
   }
 
   async function handleDeleteSpace(id) {
@@ -474,27 +387,244 @@ const App = (function() {
         method: "DELETE",
         headers: { "Authorization": `Bearer ${token}` }
       });
-      if (res.ok) {
-        loadDashboard(currentUser.role);
-      } else {
-        const data = await res.json();
-        alert(data.message || "Failed to delete");
-      }
+      if (res.ok) loadDashboard(currentUser.role);
+      else { const data = await res.json(); alert(data.message || "Failed to delete"); }
+    } catch (err) { console.error("Delete space error", err); alert("Network error"); }
+  }
+
+  // ── Booking Handlers (FR-7) ──
+  function setupBookNowButtons() {
+    document.querySelectorAll(".btn-book-now").forEach(btn => {
+      btn.addEventListener("click", () => handleBookNow(btn.dataset.spaceId));
+    });
+  }
+
+  async function handleBookNow(spaceId) {
+    const token = localStorage.getItem("token");
+    // We need the space object to show price
+    try {
+      const res = await fetch(`${API_BASE_URL}/garage-spaces/all`, {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+      });
+      if (!res.ok) return;
+      const allSpaces = await res.json();
+      const space = allSpaces.find(s => s._id === spaceId);
+      if (!space) { alert("Garage space not found"); return; }
+
+      parkingView.renderBookingForm(space);
+      setupBookingFormListeners(space);
     } catch (err) {
-      console.error("Delete space error", err);
-      alert("Network error");
+      console.error("Error fetching space for booking:", err);
     }
   }
 
-  // Initialize when DOM is ready
+  function setupBookingFormListeners(space) {
+    // Close modal
+    const closeBtn = document.getElementById("booking-modal-close");
+    const overlay = document.getElementById("booking-modal-overlay");
+    if (closeBtn) closeBtn.addEventListener("click", () => overlay.remove());
+    if (overlay) overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+
+    // Duration pills
+    const pills = document.querySelectorAll(".booking-modal .duration-pill");
+    const priceAmountEl = document.getElementById("price-amount");
+    const multipliers = { hourly: 1, "half-day": 5, "full-day": 9 };
+    let selectedDuration = "hourly";
+
+    pills.forEach(pill => {
+      pill.addEventListener("click", () => {
+        pills.forEach(p => p.classList.remove("active"));
+        pill.classList.add("active");
+        selectedDuration = pill.dataset.duration;
+        if (priceAmountEl) {
+          priceAmountEl.textContent = `৳${space.price * multipliers[selectedDuration]}`;
+        }
+      });
+    });
+
+    // Confirm booking
+    const confirmBtn = document.getElementById("confirm-booking-btn");
+    if (confirmBtn) {
+      confirmBtn.addEventListener("click", async () => {
+        const date = document.getElementById("booking-date")?.value;
+        const startTime = document.getElementById("booking-start-time")?.value;
+        const errorEl = document.getElementById("booking-error");
+        const successEl = document.getElementById("booking-success");
+        const waitlistBtn = document.getElementById("join-waitlist-btn");
+
+        if (errorEl) { errorEl.style.display = "none"; errorEl.textContent = ""; }
+        if (successEl) { successEl.style.display = "none"; successEl.textContent = ""; }
+
+        if (!date || !startTime) {
+          if (errorEl) { errorEl.textContent = "Please select a date and time"; errorEl.style.display = "block"; }
+          return;
+        }
+
+        try {
+          const token = localStorage.getItem("token");
+          const res = await fetch(`${API_BASE_URL}/bookings`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ garageSpaceId: space._id, date, startTime, duration: selectedDuration })
+          });
+          const data = await res.json();
+
+          if (res.ok) {
+            if (successEl) { successEl.textContent = "✅ Booking confirmed!"; successEl.style.display = "block"; }
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = "Booked!";
+            setTimeout(() => { if (overlay) overlay.remove(); loadDashboard(currentUser.role); }, 1500);
+          } else if (res.status === 409) {
+            if (errorEl) { errorEl.textContent = data.message; errorEl.style.display = "block"; }
+            // Show waitlist option
+            if (waitlistBtn) {
+              waitlistBtn.style.display = "inline-block";
+              waitlistBtn.onclick = async () => {
+                try {
+                  const wRes = await fetch(`${API_BASE_URL}/waitlist`, {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({ garageSpaceId: space._id, date })
+                  });
+                  const wData = await wRes.json();
+                  if (wRes.ok) {
+                    if (successEl) { successEl.textContent = "✅ Added to waitlist! You'll be notified when a space opens."; successEl.style.display = "block"; }
+                    waitlistBtn.disabled = true;
+                    waitlistBtn.textContent = "On Waitlist";
+                  } else {
+                    if (errorEl) { errorEl.textContent = wData.message; errorEl.style.display = "block"; }
+                  }
+                } catch (e) { console.error(e); }
+              };
+            }
+          } else {
+            if (errorEl) { errorEl.textContent = data.message || "Booking failed"; errorEl.style.display = "block"; }
+          }
+        } catch (err) {
+          console.error("Booking error:", err);
+          if (errorEl) { errorEl.textContent = "Network error"; errorEl.style.display = "block"; }
+        }
+      });
+    }
+  }
+
+  // ── My Bookings (FR-7 / FR-8) ──
+  async function loadMyBookings() {
+    const token = localStorage.getItem("token");
+    if (!token) { showAuthPage(); return; }
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/bookings/my`, {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+      });
+      if (res.ok) {
+        const bookings = await res.json();
+        currentBookings = bookings;
+        parkingView.renderMyBookings(bookings);
+        setupLogoutButton();
+        setupViewGaragesButton();
+        setupBookingActions();
+      }
+    } catch (err) { console.error("Error loading bookings:", err); }
+  }
+
+  function setupBookingActions() {
+    // Cancel
+    document.querySelectorAll(".btn-cancel-booking:not(.disabled)").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("Are you sure you want to cancel this booking?")) return;
+        const bookingId = btn.dataset.id;
+        const token = localStorage.getItem("token");
+        try {
+          const res = await fetch(`${API_BASE_URL}/bookings/${bookingId}/cancel`, {
+            method: "PUT",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+          });
+          const data = await res.json();
+          if (res.ok) {
+            alert(data.message + (data.waitlistNotified ? "\nA waitlisted user has been notified." : ""));
+            loadMyBookings();
+          } else {
+            alert(data.message || "Cannot cancel booking");
+          }
+        } catch (err) { console.error(err); alert("Network error"); }
+      });
+    });
+
+    // Reschedule
+    document.querySelectorAll(".btn-reschedule-booking:not(.disabled)").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const bookingId = btn.dataset.id;
+        const booking = currentBookings.find(b => b._id === bookingId);
+        if (!booking) return;
+        parkingView.renderRescheduleModal(booking);
+        setupRescheduleModalListeners(booking);
+      });
+    });
+  }
+
+  function setupRescheduleModalListeners(booking) {
+    const overlay = document.getElementById("reschedule-modal-overlay");
+    const closeBtn = document.getElementById("reschedule-modal-close");
+    if (closeBtn) closeBtn.addEventListener("click", () => overlay.remove());
+    if (overlay) overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+
+    // Duration pills (within reschedule modal)
+    const pills = overlay.querySelectorAll(".duration-pill");
+    let selectedDuration = booking.duration;
+    pills.forEach(pill => {
+      pill.addEventListener("click", () => {
+        pills.forEach(p => p.classList.remove("active"));
+        pill.classList.add("active");
+        selectedDuration = pill.dataset.duration;
+      });
+    });
+
+    const confirmBtn = document.getElementById("confirm-reschedule-btn");
+    if (confirmBtn) {
+      confirmBtn.addEventListener("click", async () => {
+        const date = document.getElementById("reschedule-date")?.value;
+        const startTime = document.getElementById("reschedule-start-time")?.value;
+        const errorEl = document.getElementById("reschedule-error");
+        const successEl = document.getElementById("reschedule-success");
+
+        if (errorEl) { errorEl.style.display = "none"; }
+
+        if (!date || !startTime) {
+          if (errorEl) { errorEl.textContent = "Please fill in all fields"; errorEl.style.display = "block"; }
+          return;
+        }
+
+        try {
+          const token = localStorage.getItem("token");
+          const res = await fetch(`${API_BASE_URL}/bookings/${booking._id}/reschedule`, {
+            method: "PUT",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ date, startTime, duration: selectedDuration })
+          });
+          const data = await res.json();
+          if (res.ok) {
+            if (successEl) { successEl.textContent = "✅ Booking rescheduled!"; successEl.style.display = "block"; }
+            setTimeout(() => { overlay.remove(); loadMyBookings(); }, 1200);
+          } else {
+            if (errorEl) { errorEl.textContent = data.message || "Reschedule failed"; errorEl.style.display = "block"; }
+          }
+        } catch (err) {
+          console.error(err);
+          if (errorEl) { errorEl.textContent = "Network error"; errorEl.style.display = "block"; }
+        }
+      });
+    }
+  }
+
+  // ── Init ──
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
   } else {
     init();
   }
 
-  return {
-    init,
-    logout
-  };
+  return { init, logout };
 })();

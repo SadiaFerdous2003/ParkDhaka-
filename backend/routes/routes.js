@@ -31,6 +31,8 @@ const upload = multer({
 const parkingController = require("../controllers/parkingController");
 const authController = require("../controllers/authController");
 const dashboardController = require("../controllers/dashboardController");
+const bookingController = require("../controllers/bookingController");
+const waitlistController = require("../controllers/waitlistController");
 const { authMiddleware, roleMiddleware } = require("../middleware/auth");
 
 // auth
@@ -96,6 +98,58 @@ router.get(
   authMiddleware,
   roleMiddleware(["Admin"]),
   dashboardController.getAdminDashboard
+);
+
+// ── Booking endpoints (FR-7, FR-8) ──
+router.post(
+  "/bookings",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  bookingController.createBooking
+);
+router.get(
+  "/bookings/my",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  bookingController.getMyBookings
+);
+router.put(
+  "/bookings/:id/cancel",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  bookingController.cancelBooking
+);
+router.put(
+  "/bookings/:id/reschedule",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  bookingController.rescheduleBooking
+);
+router.get(
+  "/bookings/host",
+  authMiddleware,
+  roleMiddleware(["GarageHost"]),
+  bookingController.getHostBookings
+);
+
+// ── Waitlist endpoints (FR-9) ──
+router.post(
+  "/waitlist",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  waitlistController.joinWaitlist
+);
+router.get(
+  "/waitlist/my",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  waitlistController.getMyWaitlist
+);
+router.delete(
+  "/waitlist/:id",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  waitlistController.leaveWaitlist
 );
 
 module.exports = router;

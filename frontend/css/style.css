@@ -232,12 +232,14 @@ header h1 {
   border-collapse: collapse;
   margin-bottom: 1rem;
 }
+
 .spaces-table th,
 .spaces-table td {
   border: 1px solid #ccc;
   padding: 8px;
   text-align: left;
 }
+
 .spaces-table img.thumb {
   max-width: 60px;
   max-height: 40px;
@@ -351,9 +353,84 @@ header h1 {
 /* Garage Listing */
 .garage-listing {
   background: white;
-  padding: 30px;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Filter Bar (FR-5) */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  align-items: flex-end;
+  padding: 20px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  position: relative;
+  z-index: 100;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.filter-group label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.filter-select,
+.filter-input {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  min-width: 150px;
+}
+
+.filter-input {
+  min-width: 100px;
+}
+
+.filter-select:focus,
+.filter-input:focus {
+  outline: none;
+  border-color: #0b5;
+  box-shadow: 0 0 0 2px rgba(0, 184, 101, 0.1);
+}
+
+.filter-bar .btn {
+  padding: 10px 20px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.filter-bar .btn-primary {
+  background: #0b5;
+  border-color: #0b5;
+  color: white;
+}
+
+.filter-bar .btn-primary:hover {
+  background: #09a056;
+  border-color: #09a056;
+}
+
+.filter-bar .btn-secondary {
+  background: #6c757d;
+  border-color: #6c757d;
+  color: white;
+}
+
+.filter-bar .btn-secondary:hover {
+  background: #5a6268;
+  border-color: #5a6268;
 }
 
 .garage-listing h2 {
@@ -441,7 +518,10 @@ header h1 {
 /* ── Booking Modal ── */
 .booking-modal-overlay {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background: rgba(0, 0, 0, 0.55);
   display: flex;
   justify-content: center;
@@ -451,8 +531,13 @@ header h1 {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .booking-modal {
@@ -467,8 +552,15 @@ header h1 {
 }
 
 @keyframes slideUp {
-  from { transform: translateY(30px); opacity: 0; }
-  to   { transform: translateY(0); opacity: 1; }
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .booking-modal h2 {
@@ -485,7 +577,8 @@ header h1 {
 
 .modal-close {
   position: absolute;
-  top: 14px; right: 18px;
+  top: 14px;
+  right: 18px;
   background: none;
   border: none;
   font-size: 28px;
@@ -494,7 +587,10 @@ header h1 {
   line-height: 1;
   transition: color 0.2s;
 }
-.modal-close:hover { color: #333; }
+
+.modal-close:hover {
+  color: #333;
+}
 
 /* Duration Selector */
 .duration-selector {
@@ -680,6 +776,7 @@ header h1 {
   background: #dc3545;
   color: white;
 }
+
 .btn-cancel-booking:hover:not(.disabled) {
   background: #c82333;
   transform: translateY(-1px);
@@ -689,6 +786,7 @@ header h1 {
   background: #007bff;
   color: white;
 }
+
 .btn-reschedule-booking:hover:not(.disabled) {
   background: #0056b3;
   transform: translateY(-1px);
@@ -764,7 +862,10 @@ header h1 {
   cursor: pointer;
   transition: background 0.2s;
 }
-.btn-book-from-waitlist:hover { background: #218838; }
+
+.btn-book-from-waitlist:hover {
+  background: #218838;
+}
 
 .btn-dismiss-waitlist {
   padding: 6px 16px;
@@ -777,7 +878,10 @@ header h1 {
   cursor: pointer;
   transition: background 0.2s;
 }
-.btn-dismiss-waitlist:hover { background: #5a6268; }
+
+.btn-dismiss-waitlist:hover {
+  background: #5a6268;
+}
 
 /* Join Waitlist secondary button */
 #join-waitlist-btn {

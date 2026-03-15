@@ -31,6 +31,9 @@ const upload = multer({
 const parkingController = require("../controllers/parkingController");
 const authController = require("../controllers/authController");
 const dashboardController = require("../controllers/dashboardController");
+const bookingController = require("../controllers/bookingController");
+const paymentController = require("../controllers/paymentController");
+const notificationController = require("../controllers/notificationController");
 const { authMiddleware, roleMiddleware } = require("../middleware/auth");
 
 // auth
@@ -56,7 +59,14 @@ router.post(
   parkingController.addGarageSpace
 );
 
-// modify / delete
+// modify / delete / toggle / notifications
+router.put(
+  "/garage-spaces/:id/status",
+  authMiddleware,
+  roleMiddleware(["GarageHost"]),
+  parkingController.toggleGarageStatus
+);
+
 router.put(
   "/garage-spaces/:id",
   authMiddleware,
@@ -69,6 +79,42 @@ router.delete(
   authMiddleware,
   roleMiddleware(["GarageHost"]),
   parkingController.deleteGarageSpace
+);
+
+// Bookings (Driver)
+router.post(
+  "/bookings",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  bookingController.createBooking
+);
+router.put(
+  "/bookings/:id/cancel",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  bookingController.cancelBooking
+);
+
+// Payments (Driver)
+router.post(
+  "/payments",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  paymentController.processPayment
+);
+
+// Notifications (Garage Host)
+router.get(
+  "/notifications",
+  authMiddleware,
+  roleMiddleware(["GarageHost"]),
+  notificationController.getHostNotifications
+);
+router.put(
+  "/notifications/:id/read",
+  authMiddleware,
+  roleMiddleware(["GarageHost"]),
+  notificationController.markAsRead
 );
 
 // dashboards

@@ -109,6 +109,27 @@ exports.updateGarageSpace = async (req, res) => {
   }
 };
 
+// toggle garage space status
+exports.toggleGarageStatus = async (req, res) => {
+  try {
+    const hostId = req.user && req.user.userId;
+    const { id } = req.params;
+    const space = await GarageSpace.findById(id);
+    if (!space) return res.status(404).json({ message: 'Space not found' });
+    if (space.host.toString() !== hostId) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    // Toggle status Between Open and Closed
+    space.status = space.status === "Open" ? "Closed" : "Open";
+
+    const updated = await space.save();
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
 // delete existing space
 exports.deleteGarageSpace = async (req, res) => {
   try {

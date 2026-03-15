@@ -76,22 +76,39 @@ const ParkingView = (function() {
     containerEl.innerHTML = html;
   }
 
-  function renderGarageHostDashboard(data, spaces = []) {
+  function renderGarageHostDashboard(data, spaces = [], notifications = []) {
     // build table of spaces
     let spacesHtml = "<p>No spaces added yet.</p>";
     if (spaces.length) {
       spacesHtml = `<table class="spaces-table">
-          <thead><tr><th>Images</th><th>Price</th><th>Vehicle Types</th><th>Hours</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Images</th><th>Price</th><th>Vehicle Types</th><th>Hours</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>${spaces
             .map(s => {
               const imgs = (s.images || []).map(u => `<img src="${u}" alt="space" class="thumb"/>`).join(" ");
               const types = (s.vehicleTypes || []).join(", ");
               const hours = s.availableHours ? `${s.availableHours.start} - ${s.availableHours.end}` : "";
-              return `<tr data-id="${s._id}"><td>${imgs}</td><td>${s.price}</td><td>${types}</td><td>${hours}</td><td><button class="edit-space-btn" data-id="${s._id}">Edit</button> <button class="delete-space-btn" data-id="${s._id}">Delete</button></td></tr>`;
+              const statusBadge = `<span class="badge ${s.status === 'Open' ? 'badge-success' : 'badge-danger'}">${s.status || 'Open'}</span>`;
+              return `<tr data-id="${s._id}"><td>${imgs}</td><td>${s.price}</td><td>${types}</td><td>${hours}</td><td>${statusBadge}</td><td><button class="toggle-status-btn" data-id="${s._id}">Toggle Status</button> <button class="edit-space-btn" data-id="${s._id}">Edit</button> <button class="delete-space-btn" data-id="${s._id}">Delete</button></td></tr>`;
             })
             .join("")}</tbody>
         </table>`;
       console.log('renderGarageHostDashboard: generated spacesHtml', spacesHtml);
+    }
+    
+    // Build Notification Section
+    let notificationHtml = "<p>No recent notifications.</p>";
+    if (notifications.length) {
+      notificationHtml = `<ul class="notification-list">
+        ${notifications.map(n => `
+          <li class="notification-item ${n.isRead ? '' : 'unread'}" data-id="${n._id}">
+            <div class="notification-content">
+              <strong>${n.type.toUpperCase()}:</strong> ${n.message}
+              <div class="notification-time"><small>${new Date(n.createdAt).toLocaleString()}</small></div>
+            </div>
+            ${!n.isRead ? `<button class="mark-read-btn btn btn-sm" data-id="${n._id}">Mark Read</button>` : ''}
+          </li>
+        `).join("")}
+      </ul>`;
     }
 
     const html = `
@@ -114,6 +131,11 @@ const ParkingView = (function() {
             <p class="stat">${data.data.monthlyRevenue}</p>
           </div>
         </div>
+
+        <section class="host-notifications">
+          <h2>Notifications</h2>
+          ${notificationHtml}
+        </section>
         <section class="host-spaces">
           <h2>Your Garage Spaces</h2>
           <div id="spaces-list">

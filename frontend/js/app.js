@@ -1,6 +1,6 @@
 const API_BASE_URL = "http://localhost:5000/api";
 
-const App = (function() {
+const App = (function () {
   const parkingView = ParkingView;
   let currentUser = null;
   let currentSpaces = []; // store fetched spaces for host
@@ -109,7 +109,7 @@ const App = (function() {
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
         currentUser = data.user;
-        
+
         // Redirect to appropriate dashboard
         loadDashboard(data.user.role);
       } else {
@@ -146,7 +146,7 @@ const App = (function() {
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
         currentUser = data.user;
-        
+
         // Redirect to appropriate dashboard
         loadDashboard(data.user.role);
       } else {
@@ -160,7 +160,7 @@ const App = (function() {
 
   async function loadDashboard(role) {
     const token = localStorage.getItem("token");
-    
+
     if (!token) {
       showAuthPage();
       return;
@@ -194,31 +194,47 @@ const App = (function() {
 
       if (response.ok) {
         const data = await response.json();
-        
+
         // if garage host we also fetch spaces
         if (role === "GarageHost") {
           console.log('loadDashboard: role is GarageHost, fetching spaces');
           try {
-            const spacesRes = await fetch(`${API_BASE_URL}/garage-spaces`, {
-              method: "GET",
-              headers: {
-                "Authorization": `Bearer ${token}`,
-                "Content-Type": "application/json"
-              }
-            });
+            const [spacesRes, notificationsRes] = await Promise.all([
+              fetch(`${API_BASE_URL}/garage-spaces`, {
+                method: "GET",
+                headers: {
+                  "Authorization": `Bearer ${token}`,
+                  "Content-Type": "application/json"
+                }
+              }),
+              fetch(`${API_BASE_URL}/notifications`, {
+                method: "GET",
+                headers: {
+                  "Authorization": `Bearer ${token}`,
+                  "Content-Type": "application/json"
+                }
+              })
+            ]);
+
             let spaces = [];
+            let notifications = [];
+
             if (spacesRes.ok) {
               spaces = await spacesRes.json();
             }
+            if (notificationsRes.ok) {
+              notifications = await notificationsRes.json();
+            }
+
             console.log('loadDashboard: spaces payload', spaces);
-            parkingView.renderGarageHostDashboard(data, spaces);
+            parkingView.renderGarageHostDashboard(data, spaces, notifications);
             console.log('loadDashboard: rendered GarageHost dashboard, spaces count=', spaces.length);
             currentSpaces = spaces;
             setupGarageHostListeners();
           } catch (err) {
-            console.error("Error loading garage spaces", err);
+            console.error("Error loading garage spaces or notifications", err);
             currentSpaces = [];
-            parkingView.renderGarageHostDashboard(data, []);
+            parkingView.renderGarageHostDashboard(data, [], []);
             console.log('loadDashboard: rendered GarageHost dashboard with empty spaces');
             setupGarageHostListeners();
           }
@@ -233,7 +249,7 @@ const App = (function() {
               break;
           }
         }
-        
+
         // Setup logout button
         setupLogoutButton();
       } else if (response.status === 401) {
@@ -277,12 +293,55 @@ const App = (function() {
         handleEditSpace(target.dataset.id);
       } else if (target.matches('.delete-space-btn')) {
         handleDeleteSpace(target.dataset.id);
+      } else if (target.matches('.toggle-status-btn')) {
+        handleToggleSpaceStatus(target.dataset.id);
+      } else if (target.matches('.mark-read-btn')) {
+        handleMarkNotificationRead(target.dataset.id);
       }
     }
 
     if (!hostListenerAdded) {
       document.addEventListener('click', hostSpacesClickHandler);
       hostListenerAdded = true;
+    }
+  }
+
+  async function handleToggleSpaceStatus(id) {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE_URL}/garage-spaces/${id}/status`, {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        loadDashboard(currentUser.role);
+      } else {
+        const data = await res.json();
+        alert(data.message || "Failed to toggle status");
+      }
+    } catch (err) {
+      console.error("Toggle status error", err);
+      alert("Network error");
+    }
+  }
+
+  async function handleMarkNotificationRead(id) {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE_URL}/notifications/${id}/read`, {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        // Just reload the dashboard to get updated notifications list and correct styling
+        loadDashboard(currentUser.role);
+      } else {
+        const data = await res.json();
+        alert(data.message || "Failed to mark as read");
+      }
+    } catch (err) {
+      console.error("Mark read error", err);
+      alert("Network error");
     }
   }
 
@@ -315,18 +374,18 @@ const App = (function() {
 
     try {
       let res;
-      
+
       if (hasFiles) {
         // Use multipart/form-data for file uploads
         const formData = new FormData();
         formData.append("price", price);
         formData.append("vehicleTypes", vehicleTypes.join(","));
         formData.append("availableHours", JSON.stringify({ start, end }));
-        
+
         for (let i = 0; i < files.length; i++) {
           formData.append("images", files[i]);
         }
-        
+
         res = await fetch(`${API_BASE_URL}/garage-spaces`, {
           method: "POST",
           headers: {
@@ -340,7 +399,7 @@ const App = (function() {
           .split(",")
           .map(s => s.trim())
           .filter(Boolean);
-        
+
         res = await fetch(`${API_BASE_URL}/garage-spaces`, {
           method: "POST",
           headers: {
@@ -360,7 +419,7 @@ const App = (function() {
           body: JSON.stringify({ images: [], price, vehicleTypes, availableHours: { start, end } })
         });
       }
-      
+
       const data = await res.json();
       if (res.ok) {
         // Clear form inputs
@@ -370,7 +429,7 @@ const App = (function() {
         document.getElementById("space-vehicle-types").value = "";
         document.getElementById("space-hour-start").value = "";
         document.getElementById("space-hour-end").value = "";
-        
+
         // reload dashboard to refresh numbers and list
         loadDashboard(currentUser.role);
       } else {
@@ -393,7 +452,7 @@ const App = (function() {
 
     const body = {};
     if (newPrice !== null) body.price = parseFloat(newPrice);
-    if (newTypes !== null) body.vehicleTypes = newTypes.split(",").map(s=>s.trim()).filter(Boolean);
+    if (newTypes !== null) body.vehicleTypes = newTypes.split(",").map(s => s.trim()).filter(Boolean);
     if (newStart !== null && newEnd !== null) body.availableHours = { start: newStart, end: newEnd };
 
     try {

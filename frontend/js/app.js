@@ -1,6 +1,6 @@
 const API_BASE_URL = "http://localhost:5000/api";
 
-const App = (function() {
+const App = (function () {
   const parkingView = ParkingView;
   let currentUser = null;
   let currentSpaces = []; // store fetched spaces for host
@@ -256,6 +256,8 @@ const App = (function() {
         setupViewGaragesButton();
         setupLogoutButton();
         setupBookNowButtons();
+        setupFilterBar(spaces);
+        initGaragesMap(spaces, currentUser?.role);
       } else if (response.status === 401) {
         logout();
       }
@@ -264,11 +266,109 @@ const App = (function() {
     }
   }
 
+  // ── Filter Bar Setup (FR-5) ──
+  function setupFilterBar(spaces) {
+    const applyBtn = document.getElementById("apply-filters-btn");
+    const clearBtn = document.getElementById("clear-filters-btn");
+    const vehicleTypeSelect = document.getElementById("filter-vehicle-type");
+    const minPriceInput = document.getElementById("filter-min-price");
+    const maxPriceInput = document.getElementById("filter-max-price");
+
+    if (!applyBtn || !clearBtn) return;
+
+    // Apply filters button handler
+    applyBtn.addEventListener("click", () => {
+      const vehicleType = vehicleTypeSelect?.value || "";
+      const minPrice = minPriceInput?.value || "";
+      const maxPrice = maxPriceInput?.value || "";
+
+      parkingView.filterAndRenderGarages(vehicleType, minPrice, maxPrice, currentUser?.role);
+
+      // Re-setup filter buttons after re-render
+      setTimeout(() => setupFilterBar(spaces), 150);
+    });
+
+    // Clear filters button handler
+    clearBtn.addEventListener("click", () => {
+      if (vehicleTypeSelect) vehicleTypeSelect.value = "";
+      if (minPriceInput) minPriceInput.value = "";
+      if (maxPriceInput) maxPriceInput.value = "";
+
+      // Render with original spaces (no filters)
+      parkingView.renderGarageListing(spaces, currentUser?.role);
+
+      // Re-setup filter buttons after re-render
+      setTimeout(() => setupFilterBar(spaces), 150);
+    });
+  }
+
   function logout() {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     currentUser = null;
     showAuthPage();
+  }
+
+  // ── Map Integration (FR-4) ──
+  function initGaragesMap(spaces, userRole) {
+    const mapContainer = document.getElementById("garages-map");
+    if (!mapContainer) return; // not on the listing page
+
+    // Let the DOM update first before injecting Leaflet map to avoid grey/missing tiles
+    setTimeout(() => {
+      // Default center to Dhaka coordinates (23.8103, 90.4125)
+      const map = L.map("garages-map").setView([23.8103, 90.4125], 13);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+      }).addTo(map);
+
+      // Force recalculation to fix container rendering bugs
+      setTimeout(() => map.invalidateSize(), 150);
+
+      let hasMarkers = false;
+      const bounds = L.latLngBounds();
+
+      spaces.forEach(s => {
+        if (s.location && s.location.lat && s.location.lng) {
+          const lat = parseFloat(s.location.lat);
+          const lng = parseFloat(s.location.lng);
+          hasMarkers = true;
+          bounds.extend([lat, lng]);
+
+          const hours = s.availableHours ? `${s.availableHours.start} - ${s.availableHours.end}` : "Not specified";
+          const btnHtml = userRole === "Driver"
+            ? `<button class="btn-book-now-map" data-space-id="${s._id}" style="margin-top: 5px; padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">📅 Book Now</button>`
+            : '';
+
+          const popupContent = `
+          <div style="min-width: 150px;">
+            <strong style="font-size: 14px;">৳${s.price}/hour</strong><br/>
+            ${s.location.address ? `<small>${s.location.address}</small><br/>` : ''}
+            <small>Hours: ${hours}</small><br/>
+            ${btnHtml}
+          </div>
+        `;
+
+          const marker = L.marker([lat, lng]).addTo(map);
+          marker.bindPopup(popupContent);
+
+          // Leaflet popups are inserted dynamically, so attach event when popup opens
+          marker.on('popupopen', () => {
+            const btn = document.querySelector(`.btn-book-now-map[data-space-id="${s._id}"]`);
+            if (btn) {
+              btn.addEventListener("click", () => handleBookNow(s._id));
+            }
+          });
+        }
+      });
+
+      if (hasMarkers) {
+        map.fitBounds(bounds, { padding: [30, 30] });
+      }
+
+    }, 100); // end of setTimeout
   }
 
   // ── Garage Host Helpers ──
@@ -294,6 +394,9 @@ const App = (function() {
     const urlInput = document.getElementById("space-image-urls");
     const price = parseFloat(document.getElementById("space-price").value);
     const typesRaw = document.getElementById("space-vehicle-types").value;
+    const lat = document.getElementById("space-lat")?.value;
+    const lng = document.getElementById("space-lng")?.value;
+    const address = document.getElementById("space-address")?.value;
     const start = document.getElementById("space-hour-start").value;
     const end = document.getElementById("space-hour-end").value;
 
@@ -315,6 +418,13 @@ const App = (function() {
         formData.append("price", price);
         formData.append("vehicleTypes", vehicleTypes.join(","));
         formData.append("availableHours", JSON.stringify({ start, end }));
+
+        const locPayload = {};
+        if (lat) locPayload.lat = parseFloat(lat);
+        if (lng) locPayload.lng = parseFloat(lng);
+        if (address) locPayload.address = address;
+        formData.append("location", JSON.stringify(locPayload));
+
         for (let i = 0; i < files.length; i++) formData.append("images", files[i]);
         res = await fetch(`${API_BASE_URL}/garage-spaces`, {
           method: "POST",
@@ -326,13 +436,19 @@ const App = (function() {
         res = await fetch(`${API_BASE_URL}/garage-spaces`, {
           method: "POST",
           headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ images, price, vehicleTypes, availableHours: { start, end } })
+          body: JSON.stringify({
+            images, price, vehicleTypes, availableHours: { start, end },
+            location: { lat: lat ? parseFloat(lat) : null, lng: lng ? parseFloat(lng) : null, address }
+          })
         });
       } else {
         res = await fetch(`${API_BASE_URL}/garage-spaces`, {
           method: "POST",
           headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ images: [], price, vehicleTypes, availableHours: { start, end } })
+          body: JSON.stringify({
+            images: [], price, vehicleTypes, availableHours: { start, end },
+            location: { lat: lat ? parseFloat(lat) : null, lng: lng ? parseFloat(lng) : null, address }
+          })
         });
       }
       const data = await res.json();
@@ -341,6 +457,9 @@ const App = (function() {
         if (urlInput) urlInput.value = "";
         document.getElementById("space-price").value = "";
         document.getElementById("space-vehicle-types").value = "";
+        const latEl = document.getElementById("space-lat"); if (latEl) latEl.value = "";
+        const lngEl = document.getElementById("space-lng"); if (lngEl) lngEl.value = "";
+        const addrEl = document.getElementById("space-address"); if (addrEl) addrEl.value = "";
         document.getElementById("space-hour-start").value = "";
         document.getElementById("space-hour-end").value = "";
         loadDashboard(currentUser.role);
@@ -362,10 +481,23 @@ const App = (function() {
     const newStart = prompt("Available hour start:", space.availableHours?.start || "");
     const newEnd = prompt("Available hour end:", space.availableHours?.end || "");
 
+    const newAddress = prompt("Address / Location Name:", space.location?.address || "");
+    const newLat = prompt("Latitude (e.g. 23.8103):", space.location?.lat || "");
+    const newLng = prompt("Longitude (e.g. 90.4125):", space.location?.lng || "");
+
     const body = {};
     if (newPrice !== null) body.price = parseFloat(newPrice);
-    if (newTypes !== null) body.vehicleTypes = newTypes.split(",").map(s=>s.trim()).filter(Boolean);
+    if (newTypes !== null) body.vehicleTypes = newTypes.split(",").map(s => s.trim()).filter(Boolean);
     if (newStart !== null && newEnd !== null) body.availableHours = { start: newStart, end: newEnd };
+
+    // Check if any location field was updated
+    if (newAddress !== null || newLat !== null || newLng !== null) {
+      body.location = {
+        address: newAddress !== null ? newAddress : space.location?.address,
+        lat: newLat ? parseFloat(newLat) : space.location?.lat,
+        lng: newLng ? parseFloat(newLng) : space.location?.lng
+      };
+    }
 
     try {
       const token = localStorage.getItem("token");

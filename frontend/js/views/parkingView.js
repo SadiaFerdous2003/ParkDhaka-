@@ -1,4 +1,4 @@
-const ParkingView = (function() {
+const ParkingView = (function () {
   const containerEl = document.getElementById("app");
 
   function renderAuthPage() {
@@ -106,13 +106,13 @@ const ParkingView = (function() {
       spacesHtml = `<table class="spaces-table">
           <thead><tr><th>Images</th><th>Price</th><th>Vehicle Types</th><th>Hours</th><th>Actions</th></tr></thead>
           <tbody>${spaces
-            .map(s => {
-              const imgs = (s.images || []).map(u => `<img src="${u}" alt="space" class="thumb"/>`).join(" ");
-              const types = (s.vehicleTypes || []).join(", ");
-              const hours = s.availableHours ? `${s.availableHours.start} - ${s.availableHours.end}` : "";
-              return `<tr data-id="${s._id}"><td>${imgs}</td><td>${s.price}</td><td>${types}</td><td>${hours}</td><td><button class="edit-space-btn" data-id="${s._id}">Edit</button> <button class="delete-space-btn" data-id="${s._id}">Delete</button></td></tr>`;
-            })
-            .join("")}</tbody>
+          .map(s => {
+            const imgs = (s.images || []).map(u => `<img src="${u}" alt="space" class="thumb"/>`).join(" ");
+            const types = (s.vehicleTypes || []).join(", ");
+            const hours = s.availableHours ? `${s.availableHours.start} - ${s.availableHours.end}` : "";
+            return `<tr data-id="${s._id}"><td>${imgs}</td><td>${s.price}</td><td>${types}</td><td>${hours}</td><td><button class="edit-space-btn" data-id="${s._id}">Edit</button> <button class="delete-space-btn" data-id="${s._id}">Delete</button></td></tr>`;
+          })
+          .join("")}</tbody>
         </table>`;
     }
 
@@ -164,13 +164,29 @@ const ParkingView = (function() {
             <label>Vehicle Types (comma separated)</label>
             <input type="text" id="space-vehicle-types" placeholder="Car, Bike, SUV" />
           </div>
-          <div class="form-group">
-            <label>Available Hours Start</label>
-            <input type="time" id="space-hour-start" />
+          <div class="form-group row">
+            <div style="flex: 1;">
+              <label>Latitude</label>
+              <input type="number" step="any" id="space-lat" placeholder="e.g. 23.8103" />
+            </div>
+            <div style="flex: 1; margin-left: 10px;">
+              <label>Longitude</label>
+              <input type="number" step="any" id="space-lng" placeholder="e.g. 90.4125" />
+            </div>
           </div>
           <div class="form-group">
-            <label>Available Hours End</label>
-            <input type="time" id="space-hour-end" />
+            <label>Address / Location Name</label>
+            <input type="text" id="space-address" placeholder="e.g. Gulshan-2, Dhaka" />
+          </div>
+          <div class="form-group row">
+            <div style="flex: 1;">
+              <label>Available Hours Start</label>
+              <input type="time" id="space-hour-start" />
+            </div>
+            <div style="flex: 1; margin-left: 10px;">
+              <label>Available Hours End</label>
+              <input type="time" id="space-hour-end" />
+            </div>
           </div>
           <button id="add-space-btn" class="btn btn-primary">Add Space</button>
           <div id="space-error" class="error-message"></div>
@@ -214,7 +230,16 @@ const ParkingView = (function() {
     if (errorEl) errorEl.textContent = message;
   }
 
+  let allSpaces = []; // Store all spaces for filtering
+
   function renderGarageListing(spaces, userRole) {
+    allSpaces = spaces; // Store for filtering
+
+    // Get price range from available spaces
+    const prices = spaces.map(s => s.price).filter(p => p != null);
+    const minPrice = prices.length ? Math.min(...prices) : 0;
+    const maxPrice = prices.length ? Math.max(...prices) : 1000;
+
     let garagesHtml = "<p>No garages listed yet.</p>";
 
     if (spaces && spaces.length > 0) {
@@ -226,6 +251,10 @@ const ParkingView = (function() {
             const hours = s.availableHours ? `${s.availableHours.start} - ${s.availableHours.end}` : "Not specified";
             const hostName = s.host ? s.host.name : "Unknown";
             const hostEmail = s.host ? s.host.email : "";
+            const address = s.location && s.location.address ? s.location.address : "Not specified";
+            const coords = s.location && s.location.lat && s.location.lng
+              ? `${s.location.lat}, ${s.location.lng}`
+              : "No coordinates";
 
             // Book Now button only for drivers
             const bookBtn = userRole === "Driver"
@@ -237,6 +266,8 @@ const ParkingView = (function() {
                 <div class="garage-images">${imgs || "<p>No images</p>"}</div>
                 <div class="garage-info">
                   <h3>৳${s.price}/hour</h3>
+                  <p><strong>Address:</strong> ${address}</p>
+                  <p><strong>Coordinates:</strong> ${coords}</p>
                   <p><strong>Vehicle Types:</strong> ${types || "Not specified"}</p>
                   <p><strong>Available Hours:</strong> ${hours}</p>
                   <p><strong>Host:</strong> ${hostName}</p>
@@ -260,14 +291,73 @@ const ParkingView = (function() {
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
+        
+        <!-- Filter Bar (FR-5) -->
+        <div class="filter-bar">
+          <div class="filter-group">
+            <label for="filter-vehicle-type">Vehicle Type:</label>
+            <select id="filter-vehicle-type" class="filter-select">
+              <option value="">All Types</option>
+              <option value="Car">Car</option>
+              <option value="SUV">SUV</option>
+              <option value="Microbus">Microbus</option>
+              <option value="Motorcycle">Motorcycle</option>
+              <option value="CNG">CNG</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="filter-min-price">Min Price (৳):</label>
+            <input type="number" id="filter-min-price" class="filter-input" placeholder="${minPrice}" min="${minPrice}" max="${maxPrice}" />
+          </div>
+          <div class="filter-group">
+            <label for="filter-max-price">Max Price (৳):</label>
+            <input type="number" id="filter-max-price" class="filter-input" placeholder="${maxPrice}" min="${minPrice}" max="${maxPrice}" />
+          </div>
+          <button id="apply-filters-btn" class="btn btn-primary">Apply Filters</button>
+          <button id="clear-filters-btn" class="btn btn-secondary">Clear</button>
+        </div>
+        
         <div class="garage-listing">
           <h2>Available Garage Spaces</h2>
-          <p class="listing-count">Total: ${spaces ? spaces.length : 0} garage(s)</p>
+          <p class="listing-count">Showing: ${spaces ? spaces.length : 0} of ${spaces ? spaces.length : 0} garage(s)</p>
+          <div id="garages-map" style="height: 400px; width: 100%; border-radius: 8px; margin-bottom: 20px; z-index: 1;"></div>
           ${garagesHtml}
         </div>
       </div>
     `;
     containerEl.innerHTML = html;
+  }
+
+  // Filter function to apply filters and re-render garage listing
+  function filterAndRenderGarages(vehicleType, minPrice, maxPrice, userRole) {
+    let filtered = allSpaces;
+
+    // Filter by vehicle type (case-insensitive, trim whitespace)
+    if (vehicleType) {
+      const searchType = vehicleType.toLowerCase().trim();
+      filtered = filtered.filter(s => {
+        const types = s.vehicleTypes || [];
+        return types.some(t => t.toLowerCase().trim().includes(searchType) || searchType.includes(t.toLowerCase().trim()));
+      });
+    }
+
+    // Filter by price range
+    if (minPrice !== null && minPrice !== undefined && minPrice !== '') {
+      filtered = filtered.filter(s => s.price >= parseFloat(minPrice));
+    }
+
+    if (maxPrice !== null && maxPrice !== undefined && maxPrice !== '') {
+      filtered = filtered.filter(s => s.price <= parseFloat(maxPrice));
+    }
+
+    renderGarageListing(filtered, userRole);
+
+    // Re-initialize map after re-render
+    setTimeout(() => {
+      if (typeof initGaragesMap === 'function') {
+        initGaragesMap(filtered, userRole);
+      }
+    }, 100);
   }
 
   // ── Booking Form Modal ──
@@ -320,19 +410,19 @@ const ParkingView = (function() {
     if (bookings && bookings.length > 0) {
       bookingsHtml = `<div class="bookings-list">
         ${bookings.map(b => {
-          const spaceName = b.garageSpace ? `৳${b.garageSpace.price}/hr garage` : "Unknown Garage";
-          const dateStr = new Date(b.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-          const statusClass = `status-${b.status}`;
+        const spaceName = b.garageSpace ? `৳${b.garageSpace.price}/hr garage` : "Unknown Garage";
+        const dateStr = new Date(b.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+        const statusClass = `status-${b.status}`;
 
-          // Determine if within 1hr (disable cancel/reschedule)
-          const bookingStart = new Date(b.date);
-          const [bh, bm] = b.startTime.split(":").map(Number);
-          bookingStart.setHours(bh, bm, 0, 0);
-          const canModify = b.status === "confirmed" && (bookingStart.getTime() - Date.now()) >= 3600000;
+        // Determine if within 1hr (disable cancel/reschedule)
+        const bookingStart = new Date(b.date);
+        const [bh, bm] = b.startTime.split(":").map(Number);
+        bookingStart.setHours(bh, bm, 0, 0);
+        const canModify = b.status === "confirmed" && (bookingStart.getTime() - Date.now()) >= 3600000;
 
-          const durationLabel = { hourly: "1 Hour", "half-day": "Half-Day (6h)", "full-day": "Full-Day (12h)" }[b.duration] || b.duration;
+        const durationLabel = { hourly: "1 Hour", "half-day": "Half-Day (6h)", "full-day": "Full-Day (12h)" }[b.duration] || b.duration;
 
-          return `
+        return `
             <div class="booking-card">
               <div class="booking-card-header">
                 <span class="booking-date">${dateStr}</span>
@@ -352,7 +442,7 @@ const ParkingView = (function() {
               ` : ''}
             </div>
           `;
-        }).join("")}
+      }).join("")}
       </div>`;
     }
 
@@ -414,6 +504,7 @@ const ParkingView = (function() {
     renderGarageHostDashboard,
     renderAdminDashboard,
     renderGarageListing,
+    filterAndRenderGarages,
     renderBookingForm,
     renderMyBookings,
     renderRescheduleModal,

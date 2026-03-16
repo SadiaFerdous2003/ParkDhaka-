@@ -164,6 +164,17 @@ const ParkingView = (function () {
             <label>Vehicle Types (comma separated)</label>
             <input type="text" id="space-vehicle-types" placeholder="Car, Bike, SUV" />
           </div>
+          
+          <!-- Location Picker Map (FR-4) -->
+          <div class="form-group">
+            <label><strong>📍 Select Location on Map</strong></label>
+            <p class="helper-text">Click on the map to set your garage location</p>
+            <div id="location-picker-map" style="height: 300px; width: 100%; border-radius: 8px; border: 2px solid #ddd; margin-bottom: 10px;"></div>
+            <div id="selected-location" style="padding: 10px; background: #e8f5e9; border-radius: 4px; margin-bottom: 15px; display: none;">
+              <strong>Selected Location:</strong> <span id="selected-coords"></span>
+            </div>
+          </div>
+          
           <div class="form-group row">
             <div style="flex: 1;">
               <label>Latitude</label>
@@ -261,6 +272,15 @@ const ParkingView = (function () {
               ? `<button class="btn-book-now" data-space-id="${s._id}" data-price="${s.price}">📅 Book Now</button>`
               : "";
 
+            // View on Map button with Google Maps navigation (FR-6)
+            const hasCoords = s.location && s.location.lat && s.location.lng;
+            const mapLink = hasCoords 
+              ? `https://www.google.com/maps/dir/?api=1&destination=${s.location.lat},${s.location.lng}`
+              : `#`;
+            const viewOnMapBtn = hasCoords
+              ? `<a href="${mapLink}" target="_blank" class="btn-view-on-map" title="Navigate to this garage">📍 View on Map</a>`
+              : `<span class="no-coords" title="No coordinates available">📍 View on Map</span>`;
+
             return `
               <div class="garage-card">
                 <div class="garage-images">${imgs || "<p>No images</p>"}</div>
@@ -273,7 +293,10 @@ const ParkingView = (function () {
                   <p><strong>Host:</strong> ${hostName}</p>
                   <p><strong>Contact:</strong> ${hostEmail}</p>
                   <p><strong>Listed:</strong> ${new Date(s.createdAt).toLocaleDateString()}</p>
-                  ${bookBtn}
+                  <div class="garage-card-actions">
+                    ${viewOnMapBtn}
+                    ${bookBtn}
+                  </div>
                 </div>
               </div>
             `;
@@ -317,11 +340,21 @@ const ParkingView = (function () {
           <button id="clear-filters-btn" class="btn btn-secondary">Clear</button>
         </div>
         
-        <div class="garage-listing">
-          <h2>Available Garage Spaces</h2>
-          <p class="listing-count">Showing: ${spaces ? spaces.length : 0} of ${spaces ? spaces.length : 0} garage(s)</p>
-          <div id="garages-map" style="height: 400px; width: 100%; border-radius: 8px; margin-bottom: 20px; z-index: 1;"></div>
-          ${garagesHtml}
+        <!-- Map Toggle Button (FR-4) -->
+        <div class="map-toggle-container">
+          <button id="toggle-map-btn" class="btn btn-toggle-map" onclick="toggleMap()">
+            <span class="toggle-icon">📍</span> Show Nearby Garages Map
+          </button>
+        </div>
+        
+        <!-- Collapsible Map Container (FR-4) -->
+        <div id="map-container-wrapper" class="map-container-wrapper collapsed">
+          <div id="garages-map" style="height: 400px; width: 100%; border-radius: 8px; z-index: 1;"></div>
+          <div class="map-legend">
+            <span class="legend-item"><span class="marker-available"></span> Available</span>
+            <span class="legend-item"><span class="marker-booked"></span> Booked</span>
+            <button id="refresh-map-btn" class="btn-refresh" title="Refresh availability">🔄 Live Update</button>
+          </div>
         </div>
       </div>
     `;

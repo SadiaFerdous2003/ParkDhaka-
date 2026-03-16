@@ -31,6 +31,13 @@ app.get("/api/status", (req, res) => {
   res.json({ status: "Server is running", timestamp: new Date() });
 });
 
+// API endpoint to get frontend configuration including Google Maps API key
+app.get("/api/config", (req, res) => {
+  res.json({
+    googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || ""
+  });
+});
+
 app.use("/api", routes);
 
 const PORT = process.env.PORT || 5000;

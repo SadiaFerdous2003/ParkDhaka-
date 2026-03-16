@@ -5,6 +5,11 @@ const garageSpaceSchema = new mongoose.Schema({
   images: [String],
   price: { type: Number, required: true },
   vehicleTypes: [String],
+  location: {
+    address: String,
+    lat: Number,
+    lng: Number
+  },
   availableHours: {
     start: String, // could be "08:00"
     end: String    // could be "18:00"

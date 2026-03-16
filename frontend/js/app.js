@@ -1,4 +1,6 @@
 const API_BASE_URL = "http://localhost:5000/api";
+let googleMapsLoaded = false;
+let googleMapsApiKey = "";
 
 const App = (function () {
   const parkingView = ParkingView;
@@ -8,7 +10,21 @@ const App = (function () {
   let hostListenerAdded = false;
 
   // ── Initialize ──
-  function init() {
+  async function init() {
+    // Fetch Google Maps API key from backend
+    try {
+      const configRes = await fetch(`${API_BASE_URL}/config`);
+      if (configRes.ok) {
+        const config = await configRes.json();
+        googleMapsApiKey = config.googleMapsApiKey;
+        if (googleMapsApiKey && googleMapsApiKey !== "YOUR_GOOGLE_MAPS_API_KEY") {
+          loadGoogleMaps();
+        }
+      }
+    } catch (e) {
+      console.log("Using Leaflet fallback for maps");
+    }
+
     const token = localStorage.getItem("token");
     const savedUser = localStorage.getItem("user");
 
@@ -25,6 +41,54 @@ const App = (function () {
       showAuthPage();
     }
   }
+
+  // ── Load Google Maps API ──
+  function loadGoogleMaps() {
+    if (googleMapsLoaded || !googleMapsApiKey) return;
+    
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=places`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      googleMapsLoaded = true;
+      console.log("Google Maps loaded successfully");
+    };
+    script.onerror = () => {
+      console.log("Failed to load Google Maps, using Leaflet fallback");
+    };
+    document.head.appendChild(script);
+  }
+
+  // ── Global Toggle Map Function (FR-4) ──
+  let mapToggleData = null; // Store spaces and userRole for toggle
+  window.toggleMap = function() {
+    const toggleBtn = document.getElementById("toggle-map-btn");
+    const mapWrapper = document.getElementById("map-container-wrapper");
+    
+    if (!toggleBtn || !mapWrapper) return;
+    
+    const isCollapsed = mapWrapper.classList.contains("collapsed");
+    
+    if (isCollapsed) {
+      mapWrapper.classList.remove("collapsed");
+      toggleBtn.innerHTML = `<span class="toggle-icon">📍</span> Hide Nearby Map`;
+      // Initialize map when showing
+      setTimeout(() => {
+        if (mapToggleData && typeof initGaragesMap === 'function') {
+          initGaragesMap(mapToggleData.spaces, mapToggleData.userRole);
+        }
+      }, 100);
+    } else {
+      mapWrapper.classList.add("collapsed");
+      toggleBtn.innerHTML = `<span class="toggle-icon">📍</span> Show Nearby Garages Map`;
+    }
+  };
+
+  // Store map data globally for toggle function
+  window.setMapToggleData = function(spaces, userRole) {
+    mapToggleData = { spaces, userRole };
+  };
 
   function showAuthPage() {
     parkingView.renderAuthPage();
@@ -161,11 +225,23 @@ const App = (function () {
             parkingView.renderGarageHostDashboard(data, spaces);
             currentSpaces = spaces;
             setupGarageHostListeners();
+            // Initialize location picker map after rendering
+            setTimeout(() => {
+              if (typeof initLocationPicker === 'function') {
+                initLocationPicker();
+              }
+            }, 100);
           } catch (err) {
             console.error("Error loading garage spaces", err);
             currentSpaces = [];
             parkingView.renderGarageHostDashboard(data, []);
             setupGarageHostListeners();
+            // Initialize location picker map after rendering
+            setTimeout(() => {
+              if (typeof initLocationPicker === 'function') {
+                initLocationPicker();
+              }
+            }, 100);
           }
         } else if (role === "Driver") {
           // Also fetch waitlist notifications
@@ -257,6 +333,11 @@ const App = (function () {
         setupLogoutButton();
         setupBookNowButtons();
         setupFilterBar(spaces);
+        setupMapToggleAndLiveUpdate(spaces, currentUser?.role);
+        // Store map data for toggle function
+        if (typeof window.setMapToggleData === 'function') {
+          window.setMapToggleData(spaces, currentUser?.role);
+        }
         initGaragesMap(spaces, currentUser?.role);
       } else if (response.status === 401) {
         logout();
@@ -302,6 +383,69 @@ const App = (function () {
     });
   }
 
+  // ── Map Toggle & Live Update Setup (FR-4) ──
+  function setupMapToggleAndLiveUpdate(spaces, userRole) {
+    const toggleBtn = document.getElementById("toggle-map-btn");
+    const mapWrapper = document.getElementById("map-container-wrapper");
+    const refreshBtn = document.getElementById("refresh-map-btn");
+
+    // Toggle map visibility
+    if (toggleBtn && mapWrapper) {
+      toggleBtn.addEventListener("click", () => {
+        const isCollapsed = mapWrapper.classList.contains("collapsed");
+        
+        if (isCollapsed) {
+          mapWrapper.classList.remove("collapsed");
+          toggleBtn.innerHTML = `<span class="toggle-icon">📍</span> Hide Nearby Map`;
+          // Initialize map when showing
+          setTimeout(() => {
+            if (typeof initGaragesMap === 'function') {
+              initGaragesMap(spaces, userRole);
+            }
+          }, 100);
+        } else {
+          mapWrapper.classList.add("collapsed");
+          toggleBtn.innerHTML = `<span class="toggle-icon">📍</span> Show Nearby Garages Map`;
+        }
+      });
+    }
+
+    // Live update refresh button
+    if (refreshBtn) {
+      refreshBtn.addEventListener("click", async () => {
+        refreshBtn.textContent = "⏳ Updating...";
+        refreshBtn.disabled = true;
+        
+        try {
+          const token = localStorage.getItem("token");
+          const response = await fetch(`${API_BASE_URL}/garage-spaces`, {
+            headers: token ? { "Authorization": `Bearer ${token}` } : {}
+          });
+          
+          if (response.ok) {
+            const updatedSpaces = await response.json();
+            // Re-initialize map with fresh data
+            if (typeof initGaragesMap === 'function') {
+              initGaragesMap(updatedSpaces, userRole);
+            }
+            refreshBtn.textContent = "✓ Updated!";
+            setTimeout(() => {
+              refreshBtn.textContent = "🔄 Live Update";
+              refreshBtn.disabled = false;
+            }, 2000);
+          }
+        } catch (error) {
+          console.error("Error refreshing map data:", error);
+          refreshBtn.textContent = "❌ Error";
+          setTimeout(() => {
+            refreshBtn.textContent = "🔄 Live Update";
+            refreshBtn.disabled = false;
+          }, 2000);
+        }
+      });
+    }
+  }
+
   function logout() {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -309,12 +453,114 @@ const App = (function () {
     showAuthPage();
   }
 
-  // ── Map Integration (FR-4) ──
+  // ── Map Integration (FR-4) - Google Maps with Leaflet Fallback ──
   function initGaragesMap(spaces, userRole) {
     const mapContainer = document.getElementById("garages-map");
     if (!mapContainer) return; // not on the listing page
 
-    // Let the DOM update first before injecting Leaflet map to avoid grey/missing tiles
+    // Clear existing map
+    mapContainer.innerHTML = '';
+
+    // Check if Google Maps is loaded
+    if (googleMapsLoaded && google && google.maps) {
+      initGoogleMaps(spaces, userRole, mapContainer);
+    } else {
+      // Fallback to Leaflet
+      initLeafletMap(spaces, userRole, mapContainer);
+    }
+  }
+
+  // ── Google Maps Implementation ──
+  function initGoogleMaps(spaces, userRole, mapContainer) {
+    // Default center to Dhaka coordinates
+    const dhaka = { lat: 23.8103, lng: 90.4125 };
+    
+    const map = new google.maps.Map(mapContainer, {
+      zoom: 13,
+      center: dhaka,
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: true
+    });
+
+    const bounds = new google.maps.LatLngBounds();
+    let hasMarkers = false;
+
+    spaces.forEach(s => {
+      if (s.location && s.location.lat && s.location.lng) {
+        const lat = parseFloat(s.location.lat);
+        const lng = parseFloat(s.location.lng);
+        const position = { lat, lng };
+        hasMarkers = true;
+        bounds.extend(position);
+
+        const hours = s.availableHours ? `${s.availableHours.start} - ${s.availableHours.end}` : "Not specified";
+        const isAvailable = s.isAvailable !== false;
+        
+        // Navigation link (FR-6)
+        const navLink = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+        
+        const btnHtml = userRole === "Driver"
+          ? `<button class="btn-book-now-map" data-space-id="${s._id}" style="margin-top: 8px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; width: 100%;">📅 Book Now</button>`
+          : '';
+
+        const contentString = `
+          <div style="min-width: 200px; padding: 10px;">
+            <strong style="font-size: 16px;">৳${s.price}/hour</strong>
+            <span style="color: ${isAvailable ? '#28a745' : '#dc3545'}; font-size: 12px; margin-left: 8px;">● ${isAvailable ? 'Available' : 'Booked'}</span><br/>
+            ${s.location.address ? `<div style="margin: 8px 0; color: #555;">${s.location.address}</div>` : ''}
+            <div style="font-size: 12px; color: #777;">Hours: ${hours}</div>
+            <a href="${navLink}" target="_blank" style="display: inline-block; margin-top: 8px; padding: 8px 16px; background: #4285f4; color: white; text-decoration: none; border-radius: 4px; font-size: 13px; width: 100%; text-align: center; box-sizing: border-box;">📍 Navigate</a>
+            ${btnHtml}
+          </div>
+        `;
+
+        const infoWindow = new google.maps.InfoWindow({
+          content: contentString
+        });
+
+        // Custom marker icon based on availability
+        const markerIcon = {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 12,
+          fillColor: isAvailable ? '#28a745' : '#dc3545',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 2
+        };
+
+        const marker = new google.maps.Marker({
+          position: position,
+          map: map,
+          title: `৳${s.price}/hour`,
+          icon: markerIcon,
+          animation: google.maps.Animation.DROP
+        });
+
+        marker.addListener("click", () => {
+          infoWindow.open(map, marker);
+
+          // Attach book button event
+          setTimeout(() => {
+            const btn = document.querySelector(`.btn-book-now-map[data-space-id="${s._id}"]`);
+            if (btn) {
+              btn.addEventListener("click", () => handleBookNow(s._id));
+            }
+          }, 100);
+        });
+      }
+    });
+
+    if (hasMarkers) {
+      map.fitBounds(bounds, { padding: 50 });
+    } else {
+      map.setCenter(dhaka);
+    }
+  }
+
+  // ── Leaflet Fallback Implementation ──
+  function initLeafletMap(spaces, userRole, mapContainer) {
+    // Let the DOM update first before injecting Leaflet map
     setTimeout(() => {
       // Default center to Dhaka coordinates (23.8103, 90.4125)
       const map = L.map("garages-map").setView([23.8103, 90.4125], 13);
@@ -330,6 +576,23 @@ const App = (function () {
       let hasMarkers = false;
       const bounds = L.latLngBounds();
 
+      // Custom icons for available/booked status
+      const availableIcon = L.divIcon({
+        className: 'custom-marker available-marker',
+        html: '<div class="marker-pin available"></div>',
+        iconSize: [30, 42],
+        iconAnchor: [15, 42],
+        popupAnchor: [0, -35]
+      });
+
+      const bookedIcon = L.divIcon({
+        className: 'custom-marker booked-marker',
+        html: '<div class="marker-pin booked"></div>',
+        iconSize: [30, 42],
+        iconAnchor: [15, 42],
+        popupAnchor: [0, -35]
+      });
+
       spaces.forEach(s => {
         if (s.location && s.location.lat && s.location.lng) {
           const lat = parseFloat(s.location.lat);
@@ -338,20 +601,29 @@ const App = (function () {
           bounds.extend([lat, lng]);
 
           const hours = s.availableHours ? `${s.availableHours.start} - ${s.availableHours.end}` : "Not specified";
+          const isAvailable = s.isAvailable !== false;
+          
+          // Navigation link (FR-6)
+          const navLink = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+          
           const btnHtml = userRole === "Driver"
             ? `<button class="btn-book-now-map" data-space-id="${s._id}" style="margin-top: 5px; padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">📅 Book Now</button>`
             : '';
 
           const popupContent = `
-          <div style="min-width: 150px;">
-            <strong style="font-size: 14px;">৳${s.price}/hour</strong><br/>
+          <div style="min-width: 180px;">
+            <strong style="font-size: 14px;">৳${s.price}/hour</strong>
+            <span style="color: ${isAvailable ? '#28a745' : '#dc3545'}; font-size: 12px;">● ${isAvailable ? 'Available' : 'Booked'}</span><br/>
             ${s.location.address ? `<small>${s.location.address}</small><br/>` : ''}
             <small>Hours: ${hours}</small><br/>
+            <a href="${navLink}" target="_blank" style="display: inline-block; margin-top: 5px; padding: 4px 8px; background: #4285f4; color: white; text-decoration: none; border-radius: 4px; font-size: 12px;">📍 Navigate</a>
             ${btnHtml}
           </div>
         `;
 
-          const marker = L.marker([lat, lng]).addTo(map);
+          const marker = L.marker([lat, lng], {
+            icon: isAvailable ? availableIcon : bookedIcon
+          }).addTo(map);
           marker.bindPopup(popupContent);
 
           // Leaflet popups are inserted dynamically, so attach event when popup opens
@@ -369,6 +641,119 @@ const App = (function () {
       }
 
     }, 100); // end of setTimeout
+  }
+
+  // ── Location Picker Map for Garage Host (FR-4) ──
+  function initLocationPicker() {
+    const mapContainer = document.getElementById("location-picker-map");
+    if (!mapContainer) return;
+
+    // Clear any existing content
+    mapContainer.innerHTML = '';
+
+    // Default center to Dhaka
+    const dhaka = { lat: 23.8103, lng: 90.4125 };
+
+    if (googleMapsLoaded && google && google.maps) {
+      // Use Google Maps for location picker
+      const map = new google.maps.Map(mapContainer, {
+        zoom: 13,
+        center: dhaka,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false
+      });
+
+      let marker = null;
+
+      // Add click listener to map
+      map.addListener("click", (event) => {
+        const lat = event.latLng.lat();
+        const lng = event.latLng.lng();
+
+        // Remove existing marker
+        if (marker) marker.setMap(null);
+
+        // Add new marker
+        marker = new google.maps.Marker({
+          position: event.latLng,
+          map: map,
+          draggable: true,
+          animation: google.maps.Animation.DROP
+        });
+
+        // Update input fields
+        document.getElementById("space-lat").value = lat.toFixed(6);
+        document.getElementById("space-lng").value = lng.toFixed(6);
+
+        // Show selected location info
+        const selectedDiv = document.getElementById("selected-location");
+        const coordsSpan = document.getElementById("selected-coords");
+        if (selectedDiv && coordsSpan) {
+          selectedDiv.style.display = "block";
+          coordsSpan.textContent = `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
+        }
+
+        // Allow marker dragging to adjust position
+        marker.addListener("dragend", () => {
+          const newLat = marker.getPosition().lat();
+          const newLng = marker.getPosition().lng();
+          document.getElementById("space-lat").value = newLat.toFixed(6);
+          document.getElementById("space-lng").value = newLng.toFixed(6);
+          if (coordsSpan) {
+            coordsSpan.textContent = `Lat: ${newLat.toFixed(6)}, Lng: ${newLng.toFixed(6)}`;
+          }
+        });
+      });
+    } else {
+      // Fallback to Leaflet
+      setTimeout(() => {
+        const map = L.map("location-picker-map").setView([dhaka.lat, dhaka.lng], 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        setTimeout(() => map.invalidateSize(), 100);
+
+        let marker = null;
+
+        map.on("click", function(e) {
+          const lat = e.latlng.lat;
+          const lng = e.latlng.lng;
+
+          // Remove existing marker
+          if (marker) map.removeLayer(marker);
+
+          // Add new marker
+          marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+
+          // Update input fields
+          document.getElementById("space-lat").value = lat.toFixed(6);
+          document.getElementById("space-lng").value = lng.toFixed(6);
+
+          // Show selected location info
+          const selectedDiv = document.getElementById("selected-location");
+          const coordsSpan = document.getElementById("selected-coords");
+          if (selectedDiv && coordsSpan) {
+            selectedDiv.style.display = "block";
+            coordsSpan.textContent = `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
+          }
+
+          // Allow marker dragging
+          marker.on("dragend", function() {
+            const newLat = marker.getLatLng().lat;
+            const newLng = marker.getLatLng().lng;
+            document.getElementById("space-lat").value = newLat.toFixed(6);
+            document.getElementById("space-lng").value = newLng.toFixed(6);
+            if (coordsSpan) {
+              coordsSpan.textContent = `Lat: ${newLat.toFixed(6)}, Lng: ${newLng.toFixed(6)}`;
+            }
+          });
+        });
+      }, 100);
+    }
   }
 
   // ── Garage Host Helpers ──

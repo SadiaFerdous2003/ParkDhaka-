@@ -1,6 +1,8 @@
 const Booking = require("../models/booking");
 const GarageSpace = require("../models/garageSpace");
 const Waitlist = require("../models/waitlist");
+const Notification = require("../models/notification");
+const User = require("../models/user");
 
 const DURATION_MAP = Booking.DURATION_MAP;
 
@@ -26,6 +28,10 @@ exports.createBooking = async (req, res) => {
     // Validate garage space exists
     const space = await GarageSpace.findById(garageSpaceId);
     if (!space) return res.status(404).json({ message: "Garage space not found" });
+
+    if (space.status === "Closed") {
+      return res.status(400).json({ message: "This garage is currently closed and cannot be booked." });
+    }
 
     const config = DURATION_MAP[duration];
     if (!config) return res.status(400).json({ message: "Invalid duration. Use hourly, half-day, or full-day" });
@@ -70,6 +76,21 @@ exports.createBooking = async (req, res) => {
       .populate("driver", "name email");
 
     res.status(201).json(populated);
+
+    // Notification for Host
+    try {
+      const driver = await User.findById(driverId);
+      const newNotification = new Notification({
+        host: space.host,
+        message: `New booking from ${driver.name} for space ${space.location.address || space._id}`,
+        type: "booking",
+        relatedId: saved._id
+      });
+      await newNotification.save();
+    } catch (notifyErr) {
+      console.error("Failed to create notification:", notifyErr);
+    }
+
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -133,6 +154,21 @@ exports.cancelBooking = async (req, res) => {
       booking,
       waitlistNotified: waitlistEntry ? true : false
     });
+
+    // Notification for Host
+    try {
+      const populatedBooking = await Booking.findById(booking._id).populate("garageSpace").populate("driver", "name");
+      const newNotification = new Notification({
+        host: populatedBooking.garageSpace.host,
+        message: `Booking cancelled by ${populatedBooking.driver.name} for space ${populatedBooking.garageSpace.location.address || populatedBooking.garageSpace._id}`,
+        type: "cancellation",
+        relatedId: booking._id
+      });
+      await newNotification.save();
+    } catch (notifyErr) {
+      console.error("Failed to create cancellation notification:", notifyErr);
+    }
+
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

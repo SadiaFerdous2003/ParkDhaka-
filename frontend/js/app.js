@@ -225,6 +225,7 @@ const App = (function () {
             parkingView.renderGarageHostDashboard(data, spaces);
             currentSpaces = spaces;
             setupGarageHostListeners();
+            loadNotifications(); // Fetch and render notifications
             // Initialize location picker map after rendering
             setTimeout(() => {
               if (typeof initLocationPicker === 'function') {
@@ -236,6 +237,7 @@ const App = (function () {
             currentSpaces = [];
             parkingView.renderGarageHostDashboard(data, []);
             setupGarageHostListeners();
+            loadNotifications(); // Fetch and render notifications
             // Initialize location picker map after rendering
             setTimeout(() => {
               if (typeof initLocationPicker === 'function') {
@@ -769,7 +771,88 @@ const App = (function () {
 
     if (!hostListenerAdded) {
       document.addEventListener('click', hostSpacesClickHandler);
+      
+      // Toggle Availability handler
+      document.addEventListener('change', async (e) => {
+        if (e.target.matches('.toggle-availability')) {
+          handleToggleAvailability(e.target);
+        }
+      });
+
+      // Mark as Read handler
+      document.addEventListener('click', (e) => {
+        if (e.target.matches('.btn-mark-read')) {
+          handleMarkNotificationAsRead(e.target.dataset.id);
+        }
+      });
+
       hostListenerAdded = true;
+    }
+  }
+
+  async function loadNotifications() {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/notifications`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const notifications = await res.json();
+        parkingView.renderNotifications(notifications);
+      }
+    } catch (err) {
+      console.error("Error loading notifications:", err);
+    }
+  }
+
+  async function handleToggleAvailability(checkbox) {
+    const spaceId = checkbox.dataset.id;
+    const newStatus = checkbox.checked ? "Open" : "Closed";
+    const token = localStorage.getItem("token");
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/garage-spaces/${spaceId}/toggle`, {
+        method: "PUT",
+        headers: { 
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (res.ok) {
+        const updatedSpace = await res.json();
+        // Update label
+        const label = checkbox.closest('td').querySelector('.status-label');
+        if (label) {
+          label.textContent = updatedSpace.status;
+          label.className = `status-label status-${updatedSpace.status}`;
+        }
+      } else {
+        // Revert on failure
+        checkbox.checked = !checkbox.checked;
+        alert("Failed to update status");
+      }
+    } catch (err) {
+      console.error(err);
+      checkbox.checked = !checkbox.checked;
+    }
+  }
+
+  async function handleMarkNotificationAsRead(id) {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/notifications/${id}/read`, {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        loadNotifications(); // Reload to update UI
+      }
+    } catch (err) {
+      console.error(err);
     }
   }
 

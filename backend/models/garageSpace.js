@@ -14,7 +14,13 @@ const garageSpaceSchema = new mongoose.Schema({
     start: String, // could be "08:00"
     end: String    // could be "18:00"
   },
+  status: { 
+    type: String, 
+    enum: ["Open", "Closed"], 
+    default: "Open" 
+  },
   createdAt: { type: Date, default: Date.now }
+
 });
 
 module.exports = mongoose.model("GarageSpace", garageSpaceSchema);

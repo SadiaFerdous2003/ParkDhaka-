@@ -104,17 +104,34 @@ const ParkingView = (function () {
     let spacesHtml = "<p>No spaces added yet.</p>";
     if (spaces.length) {
       spacesHtml = `<table class="spaces-table">
-          <thead><tr><th>Images</th><th>Price</th><th>Vehicle Types</th><th>Hours</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Images</th><th>Price</th><th>Vehicle Types</th><th>Hours</th><th>Availability</th><th>Actions</th></tr></thead>
           <tbody>${spaces
           .map(s => {
             const imgs = (s.images || []).map(u => `<img src="${u}" alt="space" class="thumb"/>`).join(" ");
             const types = (s.vehicleTypes || []).join(", ");
             const hours = s.availableHours ? `${s.availableHours.start} - ${s.availableHours.end}` : "";
-            return `<tr data-id="${s._id}"><td>${imgs}</td><td>${s.price}</td><td>${types}</td><td>${hours}</td><td><button class="edit-space-btn" data-id="${s._id}">Edit</button> <button class="delete-space-btn" data-id="${s._id}">Delete</button></td></tr>`;
+            const isChecked = s.status === "Open" ? "checked" : "";
+            const statusClass = `status-${s.status}`;
+            
+            return `<tr data-id="${s._id}">
+              <td>${imgs}</td>
+              <td>৳${s.price}</td>
+              <td>${types}</td>
+              <td>${hours}</td>
+              <td>
+                <label class="switch">
+                  <input type="checkbox" class="toggle-availability" data-id="${s._id}" ${isChecked}>
+                  <span class="slider"></span>
+                </label>
+                <span class="status-label ${statusClass}">${s.status}</span>
+              </td>
+              <td><button class="edit-space-btn" data-id="${s._id}">Edit</button> <button class="delete-space-btn" data-id="${s._id}">Delete</button></td>
+            </tr>`;
           })
           .join("")}</tbody>
         </table>`;
     }
+
 
     const html = `
       <div class="dashboard">
@@ -125,6 +142,14 @@ const ParkingView = (function () {
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
+
+        <section class="notifications-section">
+          <h2>🔔 Notifications</h2>
+          <div id="notifications-list" class="notification-list">
+            <p class="no-notifications">Loading notifications...</p>
+          </div>
+        </section>
+
         <div class="dashboard-content">
           <div class="card">
             <h3>Total Spaces</h3>
@@ -204,6 +229,8 @@ const ParkingView = (function () {
         </section>
       </div>
     `;
+
+
     containerEl.innerHTML = html;
   }
 
@@ -531,6 +558,28 @@ const ParkingView = (function () {
     containerEl.insertAdjacentHTML("beforeend", html);
   }
 
+  function renderNotifications(notifications) {
+    const listEl = document.getElementById("notifications-list");
+    if (!listEl) return;
+
+    if (!notifications || notifications.length === 0) {
+      listEl.innerHTML = '<p class="no-notifications">No notifications yet.</p>';
+      return;
+    }
+
+    listEl.innerHTML = notifications.map(n => `
+      <div class="notification-item ${n.readStatus ? '' : 'unread'}" data-id="${n._id}">
+        <div class="notification-content">
+          <span class="notification-msg">${n.message}</span>
+          <span class="notification-time">${new Date(n.timestamp).toLocaleString()}</span>
+        </div>
+        <div class="notification-actions">
+          ${n.readStatus ? '' : `<button class="btn-mark-read" data-id="${n._id}">Mark as Read</button>`}
+        </div>
+      </div>
+    `).join("");
+  }
+
   return {
     renderAuthPage,
     renderDriverDashboard,
@@ -541,6 +590,8 @@ const ParkingView = (function () {
     renderBookingForm,
     renderMyBookings,
     renderRescheduleModal,
+    renderNotifications,
     showError
   };
 })();
+

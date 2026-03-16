@@ -10,6 +10,9 @@ const userSchema = new mongoose.Schema({
     enum: ["Driver","GarageHost","Admin"],
     default: "Driver"
   },
+  favoriteGarages: [
+    { type: mongoose.Schema.Types.ObjectId, ref: "GarageSpace" }
+  ],
   createdAt: { type: Date, default: Date.now }
 });
 

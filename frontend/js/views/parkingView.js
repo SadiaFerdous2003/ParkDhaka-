@@ -76,6 +76,7 @@ const ParkingView = (function() {
           <div class="header-actions">
             <button id="view-garages-btn" class="btn btn-primary">View Garages</button>
             <button id="my-bookings-btn" class="btn btn-primary">My Bookings</button>
+            <button id="my-favorites-btn" class="btn btn-favorite-nav">❤️ Favorites</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
@@ -214,7 +215,8 @@ const ParkingView = (function() {
     if (errorEl) errorEl.textContent = message;
   }
 
-  function renderGarageListing(spaces, userRole) {
+  function renderGarageListing(spaces, userRole, favoriteIds) {
+    const favSet = new Set((favoriteIds || []).map(id => id.toString()));
     let garagesHtml = "<p>No garages listed yet.</p>";
 
     if (spaces && spaces.length > 0) {
@@ -227,6 +229,16 @@ const ParkingView = (function() {
             const hostName = s.host ? s.host.name : "Unknown";
             const hostEmail = s.host ? s.host.email : "";
 
+            const isFav = favSet.has(s._id);
+
+            // Favorite button only for drivers
+            const favBtn = userRole === "Driver"
+              ? `<button class="btn-fav-toggle ${isFav ? 'favorited' : ''}" data-space-id="${s._id}" title="${isFav ? 'Remove from Favorites' : 'Save to Favorites'}">
+                   <span class="fav-icon">${isFav ? '❤️' : '🤍'}</span>
+                   <span class="fav-text">${isFav ? 'Saved' : 'Save to Favorites'}</span>
+                 </button>`
+              : "";
+
             // Book Now button only for drivers
             const bookBtn = userRole === "Driver"
               ? `<button class="btn-book-now" data-space-id="${s._id}" data-price="${s.price}">📅 Book Now</button>`
@@ -236,7 +248,10 @@ const ParkingView = (function() {
               <div class="garage-card">
                 <div class="garage-images">${imgs || "<p>No images</p>"}</div>
                 <div class="garage-info">
-                  <h3>৳${s.price}/hour</h3>
+                  <div class="garage-info-header">
+                    <h3>৳${s.price}/hour</h3>
+                    ${favBtn}
+                  </div>
                   <p><strong>Vehicle Types:</strong> ${types || "Not specified"}</p>
                   <p><strong>Available Hours:</strong> ${hours}</p>
                   <p><strong>Host:</strong> ${hostName}</p>
@@ -264,6 +279,59 @@ const ParkingView = (function() {
           <h2>Available Garage Spaces</h2>
           <p class="listing-count">Total: ${spaces ? spaces.length : 0} garage(s)</p>
           ${garagesHtml}
+        </div>
+      </div>
+    `;
+    containerEl.innerHTML = html;
+  }
+
+  // ── Favorites Page ──
+  function renderFavoritesPage(favorites) {
+    let favHtml = "<p class='no-bookings'>You haven't saved any garages yet. Browse garages and tap ❤️ to save!</p>";
+
+    if (favorites && favorites.length > 0) {
+      favHtml = `<div class="garage-grid">
+        ${favorites.map(s => {
+          const imgs = (s.images || []).map(u => `<img src="${u}" alt="garage" class="garage-thumb"/>`).join(" ");
+          const types = (s.vehicleTypes || []).join(", ");
+          const hours = s.availableHours ? `${s.availableHours.start} - ${s.availableHours.end}` : "Not specified";
+          const hostName = s.host ? s.host.name : "Unknown";
+          const hostEmail = s.host ? s.host.email : "";
+
+          return `
+            <div class="garage-card favorite-card">
+              <div class="favorite-badge">❤️ Saved</div>
+              <div class="garage-images">${imgs || "<p>No images</p>"}</div>
+              <div class="garage-info">
+                <h3>৳${s.price}/hour</h3>
+                <p><strong>Vehicle Types:</strong> ${types || "Not specified"}</p>
+                <p><strong>Available Hours:</strong> ${hours}</p>
+                <p><strong>Host:</strong> ${hostName}</p>
+                <p><strong>Contact:</strong> ${hostEmail}</p>
+                <div class="favorite-actions">
+                  <button class="btn-book-now" data-space-id="${s._id}" data-price="${s.price}">📅 Book Now</button>
+                  <button class="btn-unfavorite" data-space-id="${s._id}">💔 Remove</button>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>`;
+    }
+
+    const html = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>❤️ My Favorite Garages</h1>
+          <div class="header-actions">
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
+            <button id="view-garages-btn" class="btn btn-primary">Browse Garages</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
+          </div>
+        </header>
+        <div class="bookings-container">
+          <p class="listing-count">${favorites ? favorites.length : 0} saved garage(s)</p>
+          ${favHtml}
         </div>
       </div>
     `;
@@ -332,6 +400,9 @@ const ParkingView = (function() {
 
           const durationLabel = { hourly: "1 Hour", "half-day": "Half-Day (6h)", "full-day": "Full-Day (12h)" }[b.duration] || b.duration;
 
+          // Show rebook button for completed or cancelled bookings
+          const canRebook = b.status === "completed" || b.status === "cancelled";
+
           return `
             <div class="booking-card">
               <div class="booking-card-header">
@@ -344,12 +415,15 @@ const ParkingView = (function() {
                 <p><strong>Total:</strong> ৳${b.totalPrice}</p>
                 <p><strong>Garage:</strong> ${spaceName}</p>
               </div>
-              ${b.status === "confirmed" ? `
               <div class="booking-card-actions">
-                <button class="btn-cancel-booking ${canModify ? '' : 'disabled'}" data-id="${b._id}" ${canModify ? '' : 'disabled title="Cannot modify within 1 hour of start"'}>Cancel</button>
-                <button class="btn-reschedule-booking ${canModify ? '' : 'disabled'}" data-id="${b._id}" ${canModify ? '' : 'disabled title="Cannot modify within 1 hour of start"'}>Reschedule</button>
+                ${b.status === "confirmed" ? `
+                  <button class="btn-cancel-booking ${canModify ? '' : 'disabled'}" data-id="${b._id}" ${canModify ? '' : 'disabled title="Cannot modify within 1 hour of start"'}>Cancel</button>
+                  <button class="btn-reschedule-booking ${canModify ? '' : 'disabled'}" data-id="${b._id}" ${canModify ? '' : 'disabled title="Cannot modify within 1 hour of start"'}>Reschedule</button>
+                ` : ''}
+                ${canRebook ? `
+                  <button class="btn-rebook-booking" data-id="${b._id}" data-space-id="${b.garageSpace ? b.garageSpace._id : ''}" data-duration="${b.duration}">🔄 Rebook</button>
+                ` : ''}
               </div>
-              ` : ''}
             </div>
           `;
         }).join("")}
@@ -408,15 +482,63 @@ const ParkingView = (function() {
     containerEl.insertAdjacentHTML("beforeend", html);
   }
 
+  // ── Rebook Modal ──
+  function renderRebookModal(booking) {
+    const spaceName = booking.garageSpace ? `৳${booking.garageSpace.price}/hr garage` : "Unknown Garage";
+    const price = booking.garageSpace ? booking.garageSpace.price : 0;
+    const multipliers = { hourly: 1, "half-day": 5, "full-day": 9 };
+    const defaultDuration = booking.duration || "hourly";
+
+    const html = `
+      <div class="booking-modal-overlay" id="rebook-modal-overlay">
+        <div class="booking-modal rebook-modal">
+          <button class="modal-close" id="rebook-modal-close">&times;</button>
+          <div class="rebook-badge">🔄 Rebooking</div>
+          <h2>Rebook This Garage</h2>
+          <p class="booking-space-info">Original: <strong>${spaceName}</strong> — pick a new date & time</p>
+
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="rebook-date" min="${new Date().toISOString().split('T')[0]}" />
+          </div>
+          <div class="form-group">
+            <label>Start Time</label>
+            <input type="time" id="rebook-start-time" />
+          </div>
+          <div class="form-group">
+            <label>Duration</label>
+            <div class="duration-selector">
+              <button class="duration-pill ${defaultDuration === 'hourly' ? 'active' : ''}" data-duration="hourly">🕐 Hourly (1h) — ×1</button>
+              <button class="duration-pill ${defaultDuration === 'half-day' ? 'active' : ''}" data-duration="half-day">🌤️ Half-Day (6h) — ×5</button>
+              <button class="duration-pill ${defaultDuration === 'full-day' ? 'active' : ''}" data-duration="full-day">☀️ Full-Day (12h) — ×9</button>
+            </div>
+          </div>
+          <div class="price-preview" id="rebook-price-preview">
+            <span>Estimated Total:</span>
+            <span class="price-amount" id="rebook-price-amount">৳${price * multipliers[defaultDuration]}</span>
+          </div>
+
+          <div id="rebook-error" class="error-message" style="display:none;"></div>
+          <div id="rebook-success" class="success-message" style="display:none;"></div>
+
+          <button id="confirm-rebook-btn" class="btn btn-primary" data-id="${booking._id}">✅ Confirm Rebook</button>
+        </div>
+      </div>
+    `;
+    containerEl.insertAdjacentHTML("beforeend", html);
+  }
+
   return {
     renderAuthPage,
     renderDriverDashboard,
     renderGarageHostDashboard,
     renderAdminDashboard,
     renderGarageListing,
+    renderFavoritesPage,
     renderBookingForm,
     renderMyBookings,
     renderRescheduleModal,
+    renderRebookModal,
     showError
   };
 })();

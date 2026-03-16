@@ -229,3 +229,75 @@ exports.getHostBookings = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+// POST /api/bookings/:id/rebook — create a new booking from an existing one
+exports.rebookBooking = async (req, res) => {
+  try {
+    const driverId = req.user && req.user.userId;
+    const originalBooking = await Booking.findById(req.params.id).populate("garageSpace");
+
+    if (!originalBooking) return res.status(404).json({ message: "Original booking not found" });
+    if (originalBooking.driver.toString() !== driverId) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    // Validate the garage space still exists
+    const space = await GarageSpace.findById(originalBooking.garageSpace._id || originalBooking.garageSpace);
+    if (!space) return res.status(404).json({ message: "Garage space no longer exists" });
+
+    const { date, startTime, duration } = req.body;
+    if (!date || !startTime || !duration) {
+      return res.status(400).json({ message: "date, startTime, and duration are required" });
+    }
+
+    const config = DURATION_MAP[duration];
+    if (!config) return res.status(400).json({ message: "Invalid duration. Use hourly, half-day, or full-day" });
+
+    // Compute end time for conflict check
+    const [h, m] = startTime.split(":").map(Number);
+    const newEndH = h + config.hours;
+    const newEndTime = `${String(newEndH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+
+    // Check for overlapping confirmed bookings
+    const bookingDate = new Date(date);
+    bookingDate.setHours(0, 0, 0, 0);
+
+    const existingBookings = await Booking.find({
+      garageSpace: space._id,
+      date: bookingDate,
+      status: "confirmed"
+    });
+
+    const conflict = existingBookings.some((b) =>
+      timesOverlap(startTime, newEndTime, b.startTime, b.endTime)
+    );
+
+    if (conflict) {
+      return res.status(409).json({
+        message: "This time slot is already booked. Please choose a different time.",
+        conflict: true
+      });
+    }
+
+    // Create the new booking
+    const newBooking = new Booking({
+      driver: driverId,
+      garageSpace: space._id,
+      date: bookingDate,
+      startTime,
+      duration
+    });
+
+    const saved = await newBooking.save();
+    const populated = await Booking.findById(saved._id)
+      .populate("garageSpace")
+      .populate("driver", "name email");
+
+    res.status(201).json({
+      message: "Booking confirmed! Rebooked successfully.",
+      booking: populated
+    });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};

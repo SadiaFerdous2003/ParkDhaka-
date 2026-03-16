@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:5000/api";
+const API_BASE_URL = "http://localhost:5001/api";
 
 const App = (function() {
   const parkingView = ParkingView;
@@ -185,6 +185,7 @@ const App = (function() {
         setupLogoutButton();
         setupViewGaragesButton();
         setupMyBookingsButton();
+        setupMyFavoritesButton();
         setupWaitlistActions();
       } else if (response.status === 401) {
         logout();
@@ -213,6 +214,11 @@ const App = (function() {
   function setupMyBookingsButton() {
     const btn = document.getElementById("my-bookings-btn");
     if (btn) btn.addEventListener("click", loadMyBookings);
+  }
+
+  function setupMyFavoritesButton() {
+    const btn = document.getElementById("my-favorites-btn");
+    if (btn) btn.addEventListener("click", loadFavoritesPage);
   }
 
   function setupWaitlistActions() {
@@ -245,18 +251,32 @@ const App = (function() {
     if (!token) { showAuthPage(); return; }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/garage-spaces/all`, {
-        method: "GET",
-        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
-      });
+      // Fetch garages and favorite IDs in parallel
+      const [spacesRes, favRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/garage-spaces/all`, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+        }),
+        currentUser?.role === "Driver"
+          ? fetch(`${API_BASE_URL}/favorites/ids`, {
+              method: "GET",
+              headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+            })
+          : Promise.resolve(null)
+      ]);
 
-      if (response.ok) {
-        const spaces = await response.json();
-        parkingView.renderGarageListing(spaces, currentUser?.role);
+      if (spacesRes.ok) {
+        const spaces = await spacesRes.json();
+        let favoriteIds = [];
+        if (favRes && favRes.ok) {
+          favoriteIds = await favRes.json();
+        }
+        parkingView.renderGarageListing(spaces, currentUser?.role, favoriteIds);
         setupViewGaragesButton();
         setupLogoutButton();
         setupBookNowButtons();
-      } else if (response.status === 401) {
+        setupFavoriteToggleButtons();
+      } else if (spacesRes.status === 401) {
         logout();
       }
     } catch (error) {
@@ -390,6 +410,85 @@ const App = (function() {
       if (res.ok) loadDashboard(currentUser.role);
       else { const data = await res.json(); alert(data.message || "Failed to delete"); }
     } catch (err) { console.error("Delete space error", err); alert("Network error"); }
+  }
+
+  // ── Favorite Handlers ──
+  function setupFavoriteToggleButtons() {
+    document.querySelectorAll(".btn-fav-toggle").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const spaceId = btn.dataset.spaceId;
+        const token = localStorage.getItem("token");
+        try {
+          const res = await fetch(`${API_BASE_URL}/favorites/${spaceId}`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+          });
+          const data = await res.json();
+          if (res.ok) {
+            // Update button UI immediately
+            const icon = btn.querySelector(".fav-icon");
+            const text = btn.querySelector(".fav-text");
+            if (data.isFavorited) {
+              btn.classList.add("favorited");
+              if (icon) icon.textContent = "❤️";
+              if (text) text.textContent = "Saved";
+              btn.title = "Remove from Favorites";
+            } else {
+              btn.classList.remove("favorited");
+              if (icon) icon.textContent = "🤍";
+              if (text) text.textContent = "Save to Favorites";
+              btn.title = "Save to Favorites";
+            }
+            // Show a brief feedback animation
+            btn.classList.add("fav-pulse");
+            setTimeout(() => btn.classList.remove("fav-pulse"), 600);
+          } else {
+            console.error("Toggle favorite failed:", data.message);
+          }
+        } catch (err) {
+          console.error("Favorite error:", err);
+        }
+      });
+    });
+  }
+
+  async function loadFavoritesPage() {
+    const token = localStorage.getItem("token");
+    if (!token) { showAuthPage(); return; }
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/favorites`, {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+      });
+      if (res.ok) {
+        const favorites = await res.json();
+        parkingView.renderFavoritesPage(favorites);
+        setupLogoutButton();
+        setupViewGaragesButton();
+        setupBookNowButtons();
+        setupUnfavoriteButtons();
+      }
+    } catch (err) { console.error("Error loading favorites:", err); }
+  }
+
+  function setupUnfavoriteButtons() {
+    document.querySelectorAll(".btn-unfavorite").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const spaceId = btn.dataset.spaceId;
+        const token = localStorage.getItem("token");
+        try {
+          const res = await fetch(`${API_BASE_URL}/favorites/${spaceId}`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+          });
+          if (res.ok) {
+            // Reload favorites page
+            loadFavoritesPage();
+          }
+        } catch (err) { console.error("Unfavorite error:", err); }
+      });
+    });
   }
 
   // ── Booking Handlers (FR-7) ──
@@ -563,6 +662,17 @@ const App = (function() {
         setupRescheduleModalListeners(booking);
       });
     });
+
+    // Rebook
+    document.querySelectorAll(".btn-rebook-booking").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const bookingId = btn.dataset.id;
+        const booking = currentBookings.find(b => b._id === bookingId);
+        if (!booking) return;
+        parkingView.renderRebookModal(booking);
+        setupRebookModalListeners(booking);
+      });
+    });
   }
 
   function setupRescheduleModalListeners(booking) {
@@ -613,6 +723,73 @@ const App = (function() {
           }
         } catch (err) {
           console.error(err);
+          if (errorEl) { errorEl.textContent = "Network error"; errorEl.style.display = "block"; }
+        }
+      });
+    }
+  }
+
+  // ── Rebook Modal Listeners ──
+  function setupRebookModalListeners(booking) {
+    const overlay = document.getElementById("rebook-modal-overlay");
+    const closeBtn = document.getElementById("rebook-modal-close");
+    if (closeBtn) closeBtn.addEventListener("click", () => overlay.remove());
+    if (overlay) overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+
+    const price = booking.garageSpace ? booking.garageSpace.price : 0;
+    const multipliers = { hourly: 1, "half-day": 5, "full-day": 9 };
+
+    // Duration pills
+    const pills = overlay.querySelectorAll(".duration-pill");
+    let selectedDuration = booking.duration || "hourly";
+    const priceAmountEl = document.getElementById("rebook-price-amount");
+
+    pills.forEach(pill => {
+      pill.addEventListener("click", () => {
+        pills.forEach(p => p.classList.remove("active"));
+        pill.classList.add("active");
+        selectedDuration = pill.dataset.duration;
+        if (priceAmountEl) {
+          priceAmountEl.textContent = `৳${price * multipliers[selectedDuration]}`;
+        }
+      });
+    });
+
+    const confirmBtn = document.getElementById("confirm-rebook-btn");
+    if (confirmBtn) {
+      confirmBtn.addEventListener("click", async () => {
+        const date = document.getElementById("rebook-date")?.value;
+        const startTime = document.getElementById("rebook-start-time")?.value;
+        const errorEl = document.getElementById("rebook-error");
+        const successEl = document.getElementById("rebook-success");
+
+        if (errorEl) { errorEl.style.display = "none"; errorEl.textContent = ""; }
+        if (successEl) { successEl.style.display = "none"; successEl.textContent = ""; }
+
+        if (!date || !startTime) {
+          if (errorEl) { errorEl.textContent = "Please select a date and time"; errorEl.style.display = "block"; }
+          return;
+        }
+
+        try {
+          const token = localStorage.getItem("token");
+          const res = await fetch(`${API_BASE_URL}/bookings/${booking._id}/rebook`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ date, startTime, duration: selectedDuration })
+          });
+          const data = await res.json();
+
+          if (res.ok) {
+            if (successEl) { successEl.textContent = "✅ " + (data.message || "Rebooked successfully!"); successEl.style.display = "block"; }
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = "✅ Booked!";
+            setTimeout(() => { overlay.remove(); loadMyBookings(); }, 1500);
+          } else {
+            if (errorEl) { errorEl.textContent = data.message || "Rebook failed"; errorEl.style.display = "block"; }
+          }
+        } catch (err) {
+          console.error("Rebook error:", err);
           if (errorEl) { errorEl.textContent = "Network error"; errorEl.style.display = "block"; }
         }
       });

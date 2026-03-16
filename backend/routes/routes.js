@@ -33,6 +33,7 @@ const authController = require("../controllers/authController");
 const dashboardController = require("../controllers/dashboardController");
 const bookingController = require("../controllers/bookingController");
 const waitlistController = require("../controllers/waitlistController");
+const favoriteController = require("../controllers/favoriteController");
 const { authMiddleware, roleMiddleware } = require("../middleware/auth");
 
 // auth
@@ -125,11 +126,37 @@ router.put(
   roleMiddleware(["Driver"]),
   bookingController.rescheduleBooking
 );
+router.post(
+  "/bookings/:id/rebook",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  bookingController.rebookBooking
+);
 router.get(
   "/bookings/host",
   authMiddleware,
   roleMiddleware(["GarageHost"]),
   bookingController.getHostBookings
+);
+
+// ── Favorites endpoints ──
+router.post(
+  "/favorites/:garageSpaceId",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  favoriteController.toggleFavorite
+);
+router.get(
+  "/favorites",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  favoriteController.getFavorites
+);
+router.get(
+  "/favorites/ids",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  favoriteController.getFavoriteIds
 );
 
 // ── Waitlist endpoints (FR-9) ──

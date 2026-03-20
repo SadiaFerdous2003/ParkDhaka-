@@ -35,6 +35,7 @@ const bookingController = require("../controllers/bookingController");
 const waitlistController = require("../controllers/waitlistController");
 const notificationController = require("../controllers/notificationController");
 const paymentController = require("../controllers/paymentController");
+const subscriptionController = require("../controllers/subscriptionController");
 
 const { authMiddleware, roleMiddleware } = require("../middleware/auth");
 
@@ -183,6 +184,20 @@ router.post(
   authMiddleware,
   roleMiddleware(["Driver"]),
   paymentController.processPayment
+);
+
+// ── Subscription Pass (FR-11) ──
+router.post(
+  "/subscriptions/purchase",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  subscriptionController.purchasePass
+);
+router.get(
+  "/subscriptions/my",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  subscriptionController.getMySubscription
 );
 
 

@@ -74,6 +74,7 @@ const ParkingView = (function () {
         <header class="dashboard-header">
           <h1>🚗 Driver Dashboard</h1>
           <div class="header-actions">
+            <button id="monthly-passes-btn" class="btn btn-primary">Monthly Passes</button>
             <button id="view-garages-btn" class="btn btn-primary">View Garages</button>
             <button id="my-bookings-btn" class="btn btn-primary">My Bookings</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
@@ -580,6 +581,50 @@ const ParkingView = (function () {
     `).join("");
   }
 
+  function renderSubscriptionPasses(data) {
+    const { hasSubscription, subscription } = data;
+    
+    let passHtml = `
+      <div class="card" style="text-align: center; padding: 40px; margin: 0 auto; width: 100%; max-width: 500px;">
+        <h2>💳 Monthly Parking Pass</h2>
+        <p style="font-size: 1.2rem; margin: 20px 0;">Get unlimited access to select parking spots for 30 days.</p>
+        <p style="font-size: 2.5rem; font-weight: bold; color: #28a745; margin-bottom: 20px;">৳5000<span style="font-size: 1rem; color: #666;"> / month</span></p>
+        <button id="purchase-pass-btn" class="btn btn-primary" style="font-size: 1.2rem; padding: 12px 30px; border-radius: 8px;">Purchase Pass</button>
+        <div id="subscription-status-msg" style="margin-top: 20px; font-weight: bold;"></div>
+      </div>
+    `;
+
+    if (hasSubscription && subscription) {
+      const expDate = new Date(subscription.endDate).toLocaleDateString();
+      passHtml = `
+        <div class="card" style="text-align: center; border: 2px solid #28a745; margin: 0 auto; width: 100%; max-width: 500px;">
+          <h2 style="color: #28a745;">✅ Active Monthly Pass</h2>
+          <p style="font-size: 1.2rem; margin: 15px 0;">You have an active subscription!</p>
+          <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; display: inline-block; margin-bottom: 20px; width: 100%; box-sizing: border-box;">
+            <p style="margin: 10px 0;"><strong>Status:</strong> <span style="color: #28a745; text-transform: uppercase;">${subscription.status}</span></p>
+            <p style="margin: 10px 0;"><strong>Valid Until:</strong> ${expDate}</p>
+          </div>
+        </div>
+      `;
+    }
+
+    const html = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>🎟️ Subscription Passes</h1>
+          <div class="header-actions">
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
+          </div>
+        </header>
+        <div class="dashboard-content" style="justify-content: center; display: flex;">
+          ${passHtml}
+        </div>
+      </div>
+    `;
+    containerEl.innerHTML = html;
+  }
+
   return {
     renderAuthPage,
     renderDriverDashboard,
@@ -589,6 +634,7 @@ const ParkingView = (function () {
     filterAndRenderGarages,
     renderBookingForm,
     renderMyBookings,
+    renderSubscriptionPasses,
     renderRescheduleModal,
     renderNotifications,
     showError

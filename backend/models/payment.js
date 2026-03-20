@@ -4,7 +4,17 @@ const paymentSchema = new mongoose.Schema({
   booking: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: "Booking", 
-    required: true 
+    required: false 
+  },
+  subscription: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Subscription",
+    required: false
+  },
+  paymentType: {
+    type: String,
+    enum: ["booking", "subscription"],
+    default: "booking"
   },
   amount: { 
     type: Number, 

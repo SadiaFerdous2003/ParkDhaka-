@@ -33,6 +33,9 @@ const authController = require("../controllers/authController");
 const dashboardController = require("../controllers/dashboardController");
 const bookingController = require("../controllers/bookingController");
 const waitlistController = require("../controllers/waitlistController");
+const notificationController = require("../controllers/notificationController");
+const paymentController = require("../controllers/paymentController");
+
 const { authMiddleware, roleMiddleware } = require("../middleware/auth");
 
 // auth
@@ -65,6 +68,14 @@ router.put(
   roleMiddleware(["GarageHost"]),
   parkingController.updateGarageSpace
 );
+
+router.put(
+  "/garage-spaces/:id/toggle",
+  authMiddleware,
+  roleMiddleware(["GarageHost"]),
+  parkingController.toggleGarageStatus
+);
+
 
 router.delete(
   "/garage-spaces/:id",
@@ -151,5 +162,28 @@ router.delete(
   roleMiddleware(["Driver"]),
   waitlistController.leaveWaitlist
 );
+
+// ── Notification endpoints ──
+router.get(
+  "/notifications",
+  authMiddleware,
+  roleMiddleware(["GarageHost"]),
+  notificationController.getNotifications
+);
+router.put(
+  "/notifications/:id/read",
+  authMiddleware,
+  roleMiddleware(["GarageHost"]),
+  notificationController.markAsRead
+);
+
+// ── Payment endpoints ──
+router.post(
+  "/payments",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  paymentController.processPayment
+);
+
 
 module.exports = router;

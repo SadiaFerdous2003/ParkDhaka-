@@ -8,11 +8,17 @@ const connectDB = async (retries = 5) => {
         throw new Error("MONGO_URI is not set in environment");
       }
       console.log(`MongoDB connection attempt ${i}/${retries}...`);
+      
+      // Log connection string (masked for security)
+      const maskedUri = process.env.MONGO_URI.replace(/:([^@]+)@/, ":****@");
+      console.log("Using Connection URI:", maskedUri);
+
       await mongoose.connect(process.env.MONGO_URI, {
-        serverSelectionTimeoutMS: 10000,
-        family: 4 // Force IPv4 — avoids IPv6 DNS issues
+        serverSelectionTimeoutMS: 10000
+        // removed family: 4 to support Atlas / IPv6
       });
       console.log("MongoDB Connected");
+
       return;
     } catch (error) {
       console.error(`MongoDB connection attempt ${i} failed:`, error.message);

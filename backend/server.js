@@ -1,6 +1,8 @@
-require("dotenv").config();
-const express = require("express");
 const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, ".env") });
+
+const express = require("express");
+
 const cors = require("cors");
 const connectDB = require("./config/db");
 const routes = require("./routes/routes");
@@ -29,6 +31,13 @@ app.get("/", (req, res) => {
 
 app.get("/api/status", (req, res) => {
   res.json({ status: "Server is running", timestamp: new Date() });
+});
+
+// API endpoint to get frontend configuration including Google Maps API key
+app.get("/api/config", (req, res) => {
+  res.json({
+    googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || ""
+  });
 });
 
 app.use("/api", routes);

@@ -263,6 +263,7 @@ const App = (function () {
         setupLogoutButton();
         setupViewGaragesButton();
         setupMyBookingsButton();
+        setupMonthlyPassesButton();
         setupWaitlistActions();
       } else if (response.status === 401) {
         logout();
@@ -291,6 +292,66 @@ const App = (function () {
   function setupMyBookingsButton() {
     const btn = document.getElementById("my-bookings-btn");
     if (btn) btn.addEventListener("click", loadMyBookings);
+  }
+
+  function setupMonthlyPassesButton() {
+    const btn = document.getElementById("monthly-passes-btn");
+    if (btn) btn.addEventListener("click", loadSubscriptionPasses);
+  }
+
+  async function loadSubscriptionPasses() {
+    const token = localStorage.getItem("token");
+    if (!token) { showAuthPage(); return; }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/subscriptions/my`, {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        parkingView.renderSubscriptionPasses(data);
+        
+        setupLogoutButton();
+        const backBtn = document.getElementById("back-to-dashboard-btn");
+        if (backBtn) backBtn.addEventListener("click", () => loadDashboard(currentUser.role));
+        
+        const purchaseBtn = document.getElementById("purchase-pass-btn");
+        if (purchaseBtn) {
+          purchaseBtn.addEventListener("click", handlePurchasePass);
+        }
+      } else if (response.status === 401) {
+        logout();
+      }
+    } catch (e) { 
+      console.error(e); 
+    }
+  }
+
+  async function handlePurchasePass() {
+    const token = localStorage.getItem("token");
+    const msgEl = document.getElementById("subscription-status-msg");
+    if (msgEl) {
+      msgEl.innerHTML = "<span style='color: #007bff'>Processing payment...</span>";
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/subscriptions/purchase`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        if (msgEl) msgEl.innerHTML = "<span style='color: #28a745'>Purchase successful! Enjoy your pass.</span>";
+        setTimeout(() => loadSubscriptionPasses(), 1500);
+      } else {
+        if (msgEl) msgEl.innerHTML = `<span style='color: #dc3545'>Error: ${data.message}</span>`;
+      }
+    } catch (e) { 
+      if (msgEl) msgEl.innerHTML = "<span style='color: #dc3545'>Network error.</span>";
+    }
   }
 
   function setupWaitlistActions() {

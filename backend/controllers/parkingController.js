@@ -44,6 +44,12 @@ exports.addGarageSpace = async (req, res) => {
         ? req.body.vehicleTypes.split(",").map(s => s.trim()).filter(Boolean)
         : req.body.vehicleTypes;
     }
+    let location;
+    if (req.body.location) {
+      location = typeof req.body.location === 'string' 
+        ? JSON.parse(req.body.location) 
+        : req.body.location;
+    }
     if (req.body.availableHours) {
       if (typeof req.body.availableHours === "string") {
         availableHours = JSON.parse(req.body.availableHours);
@@ -62,6 +68,9 @@ exports.addGarageSpace = async (req, res) => {
     if (req.body.vehicleTypes && !vehicleTypes) {
       vehicleTypes = req.body.vehicleTypes;
     }
+    if (req.body.location && !location) {
+      location = req.body.location;
+    }
     if (req.body.availableHours && !availableHours) {
       availableHours = req.body.availableHours;
     }
@@ -75,6 +84,7 @@ exports.addGarageSpace = async (req, res) => {
       images,
       price,
       vehicleTypes: vehicleTypes || [],
+      location: location || {},
       availableHours: availableHours || {}
     });
 
@@ -96,11 +106,12 @@ exports.updateGarageSpace = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
-    const { images, price, vehicleTypes, availableHours } = req.body;
+    const { images, price, vehicleTypes, availableHours, location } = req.body;
     if (images) space.images = images;
     if (price != null) space.price = price;
     if (vehicleTypes) space.vehicleTypes = vehicleTypes;
     if (availableHours) space.availableHours = availableHours;
+    if (location) space.location = location;
 
     const updated = await space.save();
     res.json(updated);
@@ -127,10 +138,11 @@ exports.deleteGarageSpace = async (req, res) => {
   }
 };
 
-// Get all garage spaces (for viewing all listed garages)
+// Get all garage spaces (for viewing all listed garages) - Only return "Open" ones for Drivers
 exports.getAllGarageSpaces = async (req, res) => {
   try {
-    const spaces = await GarageSpace.find()
+    const query = req.user && req.user.role === "Driver" ? { status: "Open" } : {};
+    const spaces = await GarageSpace.find(query)
       .populate('host', 'name email')
       .sort({ createdAt: -1 });
     res.json(spaces);
@@ -138,3 +150,29 @@ exports.getAllGarageSpaces = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+// Toggle garage availability status (Open/Closed)
+exports.toggleGarageStatus = async (req, res) => {
+  try {
+    const hostId = req.user && req.user.userId;
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!["Open", "Closed"].includes(status)) {
+      return res.status(400).json({ message: "Invalid status. Use 'Open' or 'Closed'." });
+    }
+
+    const space = await GarageSpace.findById(id);
+    if (!space) return res.status(404).json({ message: 'Space not found' });
+    
+    if (space.host.toString() !== hostId) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    space.status = status;
+    const updated = await space.save();
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};

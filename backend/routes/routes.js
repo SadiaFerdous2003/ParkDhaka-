@@ -198,6 +198,21 @@ router.get(
   paymentController.verifyPayment
 );
 
+router.get(
+  "/payments/user",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  paymentController.getUserPayments
+);
+
+router.get(
+  "/payments/host",
+  authMiddleware,
+  roleMiddleware(["GarageHost"]),
+  paymentController.getHostPayments
+);
+
+
 // ── Subscription Pass (FR-11) ──
 router.post(
   "/subscriptions/purchase",

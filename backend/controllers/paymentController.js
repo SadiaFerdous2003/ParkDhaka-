@@ -27,6 +27,8 @@ exports.initiatePayment = async (req, res) => {
     const payment = new Payment({
       user: userId,
       booking: bookingId,
+      host: booking.garageSpace.host,
+      garage: booking.garageSpace._id,
       amount,
       paymentMethod,
       status: "Pending" // Will be updated to Paid/Failed later
@@ -111,6 +113,38 @@ exports.verifyPayment = async (req, res) => {
     if (!payment) return res.status(404).json({ message: "Payment not found" });
 
     res.status(200).json({ payment });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+// 4. getUserPayments
+exports.getUserPayments = async (req, res) => {
+  try {
+    const payments = await Payment.find({ user: req.user.userId })
+      .populate({
+        path: "booking",
+        populate: { path: "garageSpace" }
+      })
+      .populate("garage")
+      .sort({ timestamp: -1 });
+
+    res.status(200).json(payments);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// 5. getHostPayments & Earnings
+exports.getHostPayments = async (req, res) => {
+  try {
+    const payments = await Payment.find({ host: req.user.userId, status: "Paid" })
+      .populate("user", "name email")
+      .populate("garage")
+      .sort({ timestamp: -1 });
+
+    const totalEarnings = payments.reduce((sum, p) => sum + p.amount, 0);
+
+    res.status(200).json({ payments, totalEarnings });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

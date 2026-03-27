@@ -16,6 +16,17 @@ const paymentSchema = new mongoose.Schema({
     ref: "Subscription",
     required: false
   },
+  host: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true
+  },
+  garage: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "GarageSpace",
+    required: true
+  },
+
   paymentType: {
     type: String,
     enum: ["booking", "subscription"],

@@ -30,7 +30,13 @@ const App = (function () {
 
     const hash = window.location.hash;
     if (hash === "#payment-success") {
-      alert("✅ Payment successful!");
+      const urlParams = new URLSearchParams(window.location.search);
+      const paymentId = urlParams.get('paymentId');
+      if (paymentId) {
+        showReceiptById(paymentId);
+      } else {
+        alert("✅ Payment successful!");
+      }
       window.history.replaceState(null, null, " "); // clear hash
     } else if (hash === "#payment-failed") {
       alert("❌ Payment failed.");
@@ -234,6 +240,7 @@ const App = (function () {
             parkingView.renderGarageHostDashboard(data, spaces);
             currentSpaces = spaces;
             setupGarageHostListeners();
+            setupHostEarningsButton();
             loadNotifications(); // Fetch and render notifications
             // Initialize location picker map after rendering
             setTimeout(() => {
@@ -246,6 +253,7 @@ const App = (function () {
             currentSpaces = [];
             parkingView.renderGarageHostDashboard(data, []);
             setupGarageHostListeners();
+            setupHostEarningsButton();
             loadNotifications(); // Fetch and render notifications
             // Initialize location picker map after rendering
             setTimeout(() => {
@@ -272,6 +280,7 @@ const App = (function () {
         setupLogoutButton();
         setupViewGaragesButton();
         setupMyBookingsButton();
+        setupPaymentHistoryButton();
         setupMonthlyPassesButton();
         setupWaitlistActions();
       } else if (response.status === 401) {
@@ -1361,6 +1370,70 @@ const App = (function () {
         }
       });
     }
+  }
+
+  function setupPaymentHistoryButton() {
+    const btn = document.getElementById("payment-history-btn");
+    if (btn) btn.addEventListener("click", loadPaymentHistory);
+  }
+
+  async function loadPaymentHistory() {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/payments/user`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const payments = await res.json();
+        parkingView.renderPaymentHistory(payments);
+        setupLogoutButton();
+        setupViewGaragesButton();
+        setupReceiptViewListeners();
+      }
+    } catch (err) { console.error(err); }
+  }
+
+  function setupReceiptViewListeners() {
+    document.querySelectorAll(".view-receipt-btn").forEach(btn => {
+      btn.addEventListener("click", () => showReceiptById(btn.dataset.id));
+    });
+  }
+
+  async function showReceiptById(paymentId) {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/payments/user`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const payments = await res.json();
+        const payment = payments.find(p => p._id === paymentId);
+        if (payment) parkingView.renderReceiptModal(payment);
+      }
+    } catch (err) { console.error(err); }
+  }
+
+  // ── Host Earnings (FR-15) ──
+  function setupHostEarningsButton() {
+    const btn = document.getElementById("host-earnings-btn");
+    if (btn) btn.addEventListener("click", loadHostEarnings);
+  }
+
+  async function loadHostEarnings() {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/payments/host`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const { payments, totalEarnings } = await res.json();
+        parkingView.renderHostPayments(payments, totalEarnings);
+        setupLogoutButton();
+        setupViewGaragesButton();
+      }
+    } catch (err) { console.error(err); }
   }
 
   // ── Init ──

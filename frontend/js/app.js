@@ -28,6 +28,15 @@ const App = (function () {
     const token = localStorage.getItem("token");
     const savedUser = localStorage.getItem("user");
 
+    const hash = window.location.hash;
+    if (hash === "#payment-success") {
+      alert("✅ Payment successful!");
+      window.history.replaceState(null, null, " "); // clear hash
+    } else if (hash === "#payment-failed") {
+      alert("❌ Payment failed.");
+      window.history.replaceState(null, null, " ");
+    }
+
     if (token && savedUser) {
       try {
         currentUser = JSON.parse(savedUser);
@@ -1132,10 +1141,14 @@ const App = (function () {
           const data = await res.json();
 
           if (res.ok) {
-            if (successEl) { successEl.textContent = "✅ Booking confirmed!"; successEl.style.display = "block"; }
+            if (successEl) { successEl.textContent = "✅ Booking confirmed! Proceeding to payment..."; successEl.style.display = "block"; }
             confirmBtn.disabled = true;
-            confirmBtn.textContent = "Booked!";
-            setTimeout(() => { if (overlay) overlay.remove(); loadDashboard(currentUser.role); }, 1500);
+            confirmBtn.textContent = "Proceeding...";
+            setTimeout(() => { 
+                if (overlay) overlay.remove(); 
+                parkingView.renderPaymentModal(data._id, data.totalPrice);
+                setupPaymentListeners();
+            }, 1200);
           } else if (res.status === 409) {
             if (errorEl) { errorEl.textContent = data.message; errorEl.style.display = "block"; }
             // Show waitlist option
@@ -1275,6 +1288,76 @@ const App = (function () {
         } catch (err) {
           console.error(err);
           if (errorEl) { errorEl.textContent = "Network error"; errorEl.style.display = "block"; }
+        }
+      });
+    }
+  }
+
+  // ── Payment Handlers (FR-14) ──
+  function setupPaymentListeners() {
+    const closeBtn = document.getElementById("payment-modal-close");
+    const overlay = document.getElementById("payment-modal-overlay");
+    if (closeBtn) closeBtn.addEventListener("click", () => {
+      overlay.remove();
+      loadDashboard(currentUser.role); 
+    });
+    if (overlay) overlay.addEventListener("click", (e) => { 
+      if (e.target === overlay) {
+        overlay.remove();
+        loadDashboard(currentUser.role);
+      }
+    });
+
+    const payBtn = document.getElementById("pay-now-btn");
+    if (payBtn) {
+      payBtn.addEventListener("click", async () => {
+        const bookingId = payBtn.dataset.bookingId;
+        const amount = payBtn.dataset.amount;
+        const methodEl = document.querySelector('input[name="payment-method"]:checked');
+        if (!methodEl) return;
+        const method = methodEl.value;
+
+        const errorEl = document.getElementById("payment-error");
+        const successEl = document.getElementById("payment-success");
+        if (errorEl) errorEl.style.display = "none";
+        
+        payBtn.disabled = true;
+        payBtn.textContent = "Processing...";
+
+        try {
+          const token = localStorage.getItem("token");
+          const res = await fetch(`${API_BASE_URL}/payments/initiate`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ bookingId, amount, paymentMethod: method })
+          });
+          const data = await res.json();
+          if (res.ok) {
+            if (method === "Cash") {
+              if (successEl) {
+                 successEl.textContent = "✅ " + data.message;
+                 successEl.style.display = "block";
+              }
+              setTimeout(() => { if (overlay) overlay.remove(); loadDashboard(currentUser.role); }, 1500);
+            } else {
+              if (successEl) {
+                 successEl.textContent = "Redirecting to payment gateway...";
+                 successEl.style.display = "block";
+              }
+              setTimeout(() => {
+                 window.location.href = data.gatewayUrl;
+              }, 1000);
+            }
+          } else {
+             if (errorEl) { errorEl.textContent = data.message || "Payment failed"; errorEl.style.display = "block"; }
+             payBtn.disabled = false;
+             payBtn.textContent = "Pay Now";
+          }
+        } catch (err) {
+           console.error(err);
+           if (errorEl) { errorEl.textContent = "Network error"; errorEl.style.display = "block"; }
+           payBtn.disabled = false;
+           payBtn.textContent = "Pay Now";
         }
       });
     }

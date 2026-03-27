@@ -384,6 +384,10 @@ const ParkingView = (function () {
             <button id="refresh-map-btn" class="btn-refresh" title="Refresh availability">🔄 Live Update</button>
           </div>
         </div>
+        
+        <div class="listings-container" style="margin-top: 20px;">
+          ${garagesHtml}
+        </div>
       </div>
     `;
     containerEl.innerHTML = html;
@@ -625,6 +629,48 @@ const ParkingView = (function () {
     containerEl.innerHTML = html;
   }
 
+  // ── Payment Modal (FR-14) ──
+  function renderPaymentModal(bookingId, amount) {
+    const html = `
+      <div class="booking-modal-overlay" id="payment-modal-overlay">
+        <div class="booking-modal" style="max-width: 450px;">
+          <button class="modal-close" id="payment-modal-close">&times;</button>
+          <h2>💳 Select Payment Method</h2>
+          <p class="booking-space-info">Total Amount: <strong>৳${amount}</strong></p>
+
+          <div class="payment-methods">
+            <label class="payment-method-label" style="display: block; margin: 10px 0;">
+              <input type="radio" name="payment-method" value="bKash" checked>
+              <span class="payment-name">bKash</span>
+            </label>
+            <label class="payment-method-label" style="display: block; margin: 10px 0;">
+              <input type="radio" name="payment-method" value="Nagad">
+              <span class="payment-name">Nagad</span>
+            </label>
+            <label class="payment-method-label" style="display: block; margin: 10px 0;">
+              <input type="radio" name="payment-method" value="Rocket">
+              <span class="payment-name">Rocket</span>
+            </label>
+            <label class="payment-method-label" style="display: block; margin: 10px 0;">
+              <input type="radio" name="payment-method" value="Card">
+              <span class="payment-name">Credit/Debit Card</span>
+            </label>
+            <label class="payment-method-label" style="display: block; margin: 10px 0;">
+              <input type="radio" name="payment-method" value="Cash">
+              <span class="payment-name">Cash (Pay at Garage)</span>
+            </label>
+          </div>
+
+          <div id="payment-error" class="error-message" style="display:none;"></div>
+          <div id="payment-success" class="success-message" style="display:none;"></div>
+
+          <button id="pay-now-btn" class="btn btn-primary" data-booking-id="${bookingId}" data-amount="${amount}" style="width: 100%; margin-top: 15px;">Pay Now</button>
+        </div>
+      </div>
+    `;
+    containerEl.insertAdjacentHTML("beforeend", html);
+  }
+
   return {
     renderAuthPage,
     renderDriverDashboard,
@@ -637,6 +683,7 @@ const ParkingView = (function () {
     renderSubscriptionPasses,
     renderRescheduleModal,
     renderNotifications,
+    renderPaymentModal,
     showError
   };
 })();

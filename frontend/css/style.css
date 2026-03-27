@@ -1081,6 +1081,58 @@ header h1 {
   width: auto;
 }
 
+/* ── Payment Option Radio Buttons ── */
+.payment-options {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.payment-option {
+  display: flex;
+  align-items: center;
+  padding: 15px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: #fff;
+}
+
+.payment-option:hover {
+  border-color: #0b5;
+  box-shadow: 0 2px 8px rgba(0, 181, 85, 0.1);
+}
+
+.payment-option input[type="radio"] {
+  margin-right: 15px;
+  accent-color: #0b5; /* Custom color for the radio button */
+  transform: scale(1.2); /* Slightly larger radio button */
+}
+
+.payment-option.selected {
+  border-color: #0b5;
+  box-shadow: 0 0 0 2px rgba(0, 181, 85, 0.3);
+  background-color: #f0fdf4;
+}
+
+.payment-option-details {
+  flex-grow: 1;
+}
+
+.payment-option-details h4 {
+  margin: 0 0 5px 0;
+  font-size: 16px;
+  color: #333;
+}
+
+.payment-option-details p {
+  margin: 0;
+  font-size: 13px;
+  color: #666;
+}
+
 /* ── Toggle Switch (iOS style) ── */
 .switch {
   position: relative;

@@ -2,40 +2,115 @@ const Payment = require("../models/payment");
 const Booking = require("../models/booking");
 const Notification = require("../models/notification");
 
-exports.processPayment = async (req, res) => {
-  try {
-    const { bookingId, amount } = req.body;
+const crypto = require("crypto");
 
-    if (!bookingId || !amount) {
-      return res.status(400).json({ message: "bookingId and amount are required" });
+// 1. initiatePayment
+exports.initiatePayment = async (req, res) => {
+  try {
+    const { bookingId, amount, paymentMethod } = req.body;
+    const userId = req.user && req.user.userId;
+
+    if (!bookingId || !amount || !paymentMethod) {
+      return res.status(400).json({ message: "bookingId, amount, and paymentMethod are required" });
     }
 
     const booking = await Booking.findById(bookingId).populate("garageSpace");
     if (!booking) return res.status(404).json({ message: "Booking not found" });
 
-    // Mock payment processing
+    // Check for existing payment to prevent duplicate
+    const existingPayment = await Payment.findOne({ booking: bookingId, status: { $in: ["Pending", "Paid"] } });
+    if (existingPayment && existingPayment.status === "Paid") {
+      return res.status(400).json({ message: "Payment already completed for this booking." });
+    }
+
+    // Create Payment Record (Pending)
     const payment = new Payment({
+      user: userId,
       booking: bookingId,
       amount,
-      status: "completed"
+      paymentMethod,
+      status: "Pending" // Will be updated to Paid/Failed later
     });
 
     await payment.save();
 
-    // Notify Host about payment
-    try {
-      const newNotification = new Notification({
-        host: booking.garageSpace.host,
-        message: `Payment of ৳${amount} completed for booking ${bookingId}`,
-        type: "payment",
-        relatedId: payment._id
+    // Specific logic per method
+    if (paymentMethod === "Cash") {
+      return res.status(200).json({ 
+        message: "Pay at garage", 
+        payment,
+        gatewayUrl: null 
       });
-      await newNotification.save();
-    } catch (notifyErr) {
-      console.error("Failed to create payment notification:", notifyErr);
+    } else {
+      // Simulate Payment Gateway URL redirection
+      const tran_id = "TXN_" + crypto.randomBytes(8).toString("hex").toUpperCase();
+      payment.transactionId = tran_id;
+      await payment.save();
+
+      const redirectUrl = `/api/payments/callback?paymentId=${payment._id}&tran_id=${tran_id}&status=Paid`;
+      
+      return res.status(200).json({
+        message: "Redirecting to payment gateway...",
+        payment,
+        gatewayUrl: redirectUrl
+      });
+    }
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// 2. handlePaymentCallback
+exports.handlePaymentCallback = async (req, res) => {
+  try {
+    const { paymentId, tran_id, status } = req.query;
+
+    const payment = await Payment.findById(paymentId).populate({
+      path: "booking",
+      populate: { path: "garageSpace" }
+    });
+
+    if (!payment) return res.status(404).json({ message: "Payment not found" });
+
+    if (payment.status === "Paid") {
+       return res.redirect("/#payment-success");
     }
 
-    res.status(201).json({ message: "Payment successful", payment });
+    if (status === "Paid") {
+      payment.status = "Paid";
+      await payment.save();
+
+      try {
+        const newNotification = new Notification({
+          host: payment.booking.garageSpace.host,
+          message: `Payment of ৳${payment.amount} completed via ${payment.paymentMethod} for booking ${payment.booking._id}`,
+          type: "payment",
+          relatedId: payment._id
+        });
+        await newNotification.save();
+      } catch (notifyErr) {
+        console.error("Failed to create payment notification:", notifyErr);
+      }
+
+      res.redirect("/#payment-success");
+    } else {
+      payment.status = "Failed";
+      await payment.save();
+      res.redirect("/#payment-failed");
+    }
+  } catch (err) {
+    console.error(err);
+    res.redirect("/#payment-failed");
+  }
+};
+
+// 3. verifyPayment
+exports.verifyPayment = async (req, res) => {
+  try {
+    const payment = await Payment.findOne({ booking: req.params.bookingId });
+    if (!payment) return res.status(404).json({ message: "Payment not found" });
+
+    res.status(200).json({ payment });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

@@ -180,10 +180,22 @@ router.put(
 
 // ── Payment endpoints ──
 router.post(
-  "/payments",
+  "/payments/initiate",
   authMiddleware,
   roleMiddleware(["Driver"]),
-  paymentController.processPayment
+  paymentController.initiatePayment
+);
+
+router.get(
+  "/payments/callback",
+  paymentController.handlePaymentCallback
+);
+
+router.get(
+  "/payments/verify/:bookingId",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  paymentController.verifyPayment
 );
 
 // ── Subscription Pass (FR-11) ──

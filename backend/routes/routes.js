@@ -119,6 +119,12 @@ router.post(
   roleMiddleware(["Driver"]),
   bookingController.createBooking
 );
+router.post(
+  "/bookings/quote",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  bookingController.getBookingQuote
+);
 router.get(
   "/bookings/my",
   authMiddleware,

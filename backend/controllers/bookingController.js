@@ -265,3 +265,66 @@ exports.getHostBookings = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+// POST /api/bookings/quote — get a price quote before booking
+exports.getBookingQuote = async (req, res) => {
+  try {
+    const driverId = req.user && req.user.userId;
+    const { garageSpaceId, date, startTime, duration } = req.body;
+    const { calculateDynamicPrice } = require("../utils/pricingEngine");
+    const Subscription = require("../models/subscription");
+
+    if (!garageSpaceId || !date || !startTime || !duration) {
+      return res.status(400).json({ message: "garageSpaceId, date, startTime, and duration are required" });
+    }
+
+    const space = await GarageSpace.findById(garageSpaceId);
+    if (!space) return res.status(404).json({ message: "Garage space not found" });
+
+    // 1. Check for Active Subscription
+    const activeSub = await Subscription.findOne({
+      user: driverId,
+      garageSpace: garageSpaceId,
+      status: "active",
+      endDate: { $gt: new Date() }
+    });
+
+    if (activeSub) {
+      return res.json({
+        totalPrice: 0,
+        pricingBreakdown: { base: 0, peak: 0, surge: 0, discount: 0 },
+        indicators: ["Active Subscription - Free"],
+        colorTag: "green",
+        isSubscribed: true
+      });
+    }
+
+    // 2. Dynamic Price Calculation
+    const bookingDate = new Date(date);
+    bookingDate.setHours(0, 0, 0, 0);
+
+    const concurrentCount = await Booking.countDocuments({
+      garageSpace: garageSpaceId,
+      date: bookingDate,
+      status: "confirmed"
+    });
+
+    const pricingInfo = calculateDynamicPrice(
+      space,
+      concurrentCount,
+      startTime,
+      duration
+    );
+
+    res.json({
+      totalPrice: pricingInfo.finalPrice,
+      pricingBreakdown: pricingInfo.breakdown,
+      indicators: pricingInfo.indicators,
+      colorTag: pricingInfo.color,
+      demandRatio: pricingInfo.demandRatio,
+      isSubscribed: false
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};

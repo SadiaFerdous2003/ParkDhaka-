@@ -30,6 +30,18 @@ const bookingSchema = new mongoose.Schema({
   totalPrice: {
     type: Number // computed before save
   },
+  pricingBreakdown: {
+    base: Number,
+    peak: Number,
+    surge: Number,
+    discount: Number
+  },
+  indicators: [String],
+  colorTag: {
+    type: String,
+    enum: ["green", "yellow", "red"],
+    default: "green"
+  },
   status: {
     type: String,
     enum: ["confirmed", "cancelled", "completed"],
@@ -50,6 +62,10 @@ const DURATION_MAP = {
 
 // Compute endTime & totalPrice before saving
 bookingSchema.pre("validate", async function (next) {
+  const GarageSpace = mongoose.model("GarageSpace");
+  const Subscription = mongoose.model("Subscription");
+  const { calculateDynamicPrice } = require("../utils/pricingEngine");
+
   const config = DURATION_MAP[this.duration];
   if (!config) return next(new Error("Invalid duration"));
 
@@ -58,23 +74,46 @@ bookingSchema.pre("validate", async function (next) {
   const endH = h + config.hours;
   this.endTime = `${String(endH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 
-  // Compute totalPrice
+  // Compute totalPrice components if not already set (e.g., manually)
   if (this.totalPrice == null) {
-    const Subscription = mongoose.model("Subscription");
+    // 1. Check for Active Subscription
     const activeSub = await Subscription.findOne({
       user: this.driver,
       garageSpace: this.garageSpace,
       status: "active",
       endDate: { $gt: new Date() }
     });
-    
+
     if (activeSub) {
-      this.totalPrice = 0; // Free for subscribed commuters (monthly pass)
+      this.totalPrice = 0;
+      this.indicators = ["Active Subscription - Free"];
+      this.colorTag = "green";
+      this.pricingBreakdown = { base: 0, peak: 0, surge: 0, discount: 0 };
     } else {
-      const GarageSpace = mongoose.model("GarageSpace");
       const space = await GarageSpace.findById(this.garageSpace);
       if (space) {
-        this.totalPrice = space.price * config.multiplier;
+        // Count concurrent bookings for the same space and date
+        const bookingDate = new Date(this.date);
+        bookingDate.setHours(0, 0, 0, 0);
+
+        // We count ONLY confirmed bookings on this day for the pricing calculation
+        const concurrentCount = await mongoose.model("Booking").countDocuments({
+          garageSpace: this.garageSpace,
+          date: bookingDate,
+          status: "confirmed"
+        });
+
+        const pricingInfo = calculateDynamicPrice(
+          space,
+          concurrentCount,
+          this.startTime,
+          this.duration
+        );
+
+        this.totalPrice = pricingInfo.finalPrice;
+        this.pricingBreakdown = pricingInfo.breakdown;
+        this.indicators = pricingInfo.indicators;
+        this.colorTag = pricingInfo.color;
       }
     }
   }

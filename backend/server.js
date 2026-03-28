@@ -43,4 +43,15 @@ app.get("/api/config", (req, res) => {
 app.use("/api", routes);
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const server = app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\n❌ Port ${PORT} is already in use!`);
+    console.error(`Run this to fix: taskkill /IM node.exe /F`);
+    console.error(`Then restart with: npm run dev\n`);
+    process.exit(1);
+  } else {
+    throw err;
+  }
+});

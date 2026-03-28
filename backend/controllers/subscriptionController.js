@@ -4,20 +4,27 @@ const Payment = require("../models/payment");
 exports.purchasePass = async (req, res) => {
   try {
     const userId = req.user.userId;
-    // Check if user already has an active subscription
+    const { garageSpaceId, price, slotType } = req.body;
+
+    if (!garageSpaceId || !price) {
+      return res.status(400).json({ message: "Garage Space ID and Price are required." });
+    }
+
+    // Check if user already has an active subscription ANYWHERE (Limit to 1)
     const existingSub = await Subscription.findOne({ user: userId, status: "active", endDate: { $gt: new Date() } });
     if (existingSub) {
       return res.status(400).json({ message: "You already have an active subscription." });
     }
 
-    const price = 5000; // Fixed monthly pass price (e.g. 5000 BDT)
     const startDate = new Date();
     const endDate = new Date();
     endDate.setDate(startDate.getDate() + 30); // 30 days validity
 
     const newSubscription = new Subscription({
       user: userId,
+      garageSpace: garageSpaceId,
       passType: "monthly",
+      slotType: slotType || "Reserved",
       price,
       startDate,
       endDate,
@@ -45,14 +52,21 @@ exports.purchasePass = async (req, res) => {
 exports.getMySubscription = async (req, res) => {
   try {
     const userId = req.user.userId;
-    // Find active subscription that hasn't expired
-    const subscription = await Subscription.findOne({ user: userId, status: "active", endDate: { $gt: new Date() } });
-    
-    if (!subscription) {
-      return res.status(200).json({ hasSubscription: false });
+    // Find all subscriptions for this user
+    const subscriptions = await Subscription.find({ user: userId })
+      .populate({ path: "garageSpace", populate: { path: "host", select: "name email" } })
+      .sort({ endDate: -1 });
+
+    // Auto update expired status
+    for (const sub of subscriptions) {
+      const isExpired = sub.endDate <= new Date();
+      if (isExpired && sub.status === "active") {
+        sub.status = "expired";
+        await sub.save();
+      }
     }
 
-    res.status(200).json({ hasSubscription: true, subscription });
+    res.status(200).json({ subscriptions });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server Error" });

@@ -19,6 +19,10 @@ const garageSpaceSchema = new mongoose.Schema({
     enum: ["Open", "Closed"], 
     default: "Open" 
   },
+  capacity: {
+    type: Number,
+    default: 1
+  },
   createdAt: { type: Date, default: Date.now }
 
 });

@@ -957,6 +957,7 @@ const App = (function () {
     const address = document.getElementById("space-address")?.value;
     const start = document.getElementById("space-hour-start").value;
     const end = document.getElementById("space-hour-end").value;
+    const capacity = parseInt(document.getElementById("space-capacity")?.value || "1");
 
     const errorEl = document.getElementById("space-error");
     if (errorEl) errorEl.textContent = "";
@@ -974,6 +975,7 @@ const App = (function () {
       if (hasFiles) {
         const formData = new FormData();
         formData.append("price", price);
+        formData.append("capacity", capacity);
         formData.append("vehicleTypes", vehicleTypes.join(","));
         formData.append("availableHours", JSON.stringify({ start, end }));
 
@@ -995,7 +997,7 @@ const App = (function () {
           method: "POST",
           headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            images, price, vehicleTypes, availableHours: { start, end },
+            images, price, capacity, vehicleTypes, availableHours: { start, end },
             location: { lat: lat ? parseFloat(lat) : null, lng: lng ? parseFloat(lng) : null, address }
           })
         });
@@ -1004,7 +1006,7 @@ const App = (function () {
           method: "POST",
           headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            images: [], price, vehicleTypes, availableHours: { start, end },
+            images: [], price, capacity, vehicleTypes, availableHours: { start, end },
             location: { lat: lat ? parseFloat(lat) : null, lng: lng ? parseFloat(lng) : null, address }
           })
         });
@@ -1014,6 +1016,7 @@ const App = (function () {
         if (fileInput) fileInput.value = "";
         if (urlInput) urlInput.value = "";
         document.getElementById("space-price").value = "";
+        const capacityEl = document.getElementById("space-capacity"); if (capacityEl) capacityEl.value = "1";
         document.getElementById("space-vehicle-types").value = "";
         const latEl = document.getElementById("space-lat"); if (latEl) latEl.value = "";
         const lngEl = document.getElementById("space-lng"); if (lngEl) lngEl.value = "";
@@ -1113,7 +1116,86 @@ const App = (function () {
     }
   }
 
+  async function updatePriceQuote(spaceId, date, startTime, duration, hasSub) {
+    if (hasSub) return; // Stay free
+    if (!date || !startTime || !duration) return;
+
+    const token = localStorage.getItem("token");
+    const priceAmountEl = document.getElementById("price-amount");
+    const indicatorEl = document.getElementById("price-indicators");
+    
+    // Breakdown fields
+    const baseEl = document.getElementById("breakdown-base");
+    const peakEl = document.getElementById("breakdown-peak");
+    const surgeEl = document.getElementById("breakdown-surge");
+    const discEl = document.getElementById("breakdown-discount");
+    const totalEl = document.getElementById("breakdown-total");
+    
+    // Rows
+    const peakRow = document.getElementById("breakdown-peak-row");
+    const surgeRow = document.getElementById("breakdown-surge-row");
+    const discRow = document.getElementById("breakdown-discount-row");
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/bookings/quote`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ garageSpaceId: spaceId, date, startTime, duration })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        
+        // Update main price
+        if (priceAmountEl) {
+          priceAmountEl.textContent = `৳${data.totalPrice}`;
+          // Set color based on colorTag
+          priceAmountEl.className = "price-amount";
+          if (data.colorTag === "yellow") priceAmountEl.classList.add("price-yellow");
+          if (data.colorTag === "red") priceAmountEl.classList.add("price-red");
+        }
+
+        // Update indicators
+        if (indicatorEl) {
+          indicatorEl.innerHTML = data.indicators.map(ind => `
+            <span class="indicator-tag tag-${data.colorTag}">${ind}</span>
+          `).join("");
+        }
+
+        // Update breakdown
+        if (baseEl) baseEl.textContent = `৳${data.pricingBreakdown.base}`;
+        
+        if (peakEl && data.pricingBreakdown.peak > 0) {
+          peakEl.textContent = `+৳${data.pricingBreakdown.peak}`;
+          if (peakRow) peakRow.style.display = "flex";
+        } else if (peakRow) {
+          peakRow.style.display = "none";
+        }
+
+        if (surgeEl && data.pricingBreakdown.surge > 0) {
+          surgeEl.textContent = `+৳${data.pricingBreakdown.surge}`;
+          if (surgeRow) surgeRow.style.display = "flex";
+        } else if (surgeRow) {
+          surgeRow.style.display = "none";
+        }
+
+        if (discEl && data.pricingBreakdown.discount > 0) {
+          discEl.textContent = `-৳${data.pricingBreakdown.discount}`;
+          if (discRow) discRow.style.display = "flex";
+        } else if (discRow) {
+          discRow.style.display = "none";
+        }
+
+        if (totalEl) totalEl.textContent = `৳${data.totalPrice}`;
+      }
+    } catch (err) {
+      console.error("Quote error:", err);
+    }
+  }
+
   function setupBookingFormListeners(space, hasSub = false, isExpired = false) {
+    let selectedDuration = "hourly";
+
     // Close modal
     const closeBtn = document.getElementById("booking-modal-close");
     const overlay = document.getElementById("booking-modal-overlay");
@@ -1130,20 +1212,36 @@ const App = (function () {
       });
     }
 
+    // Toggle Breakdown
+    const toggleBreakdownBtn = document.getElementById("toggle-breakdown-btn");
+    const breakdownDetails = document.getElementById("price-breakdown-details");
+    if (toggleBreakdownBtn && breakdownDetails) {
+      toggleBreakdownBtn.addEventListener("click", () => {
+        const isHidden = breakdownDetails.style.display === "none";
+        breakdownDetails.style.display = isHidden ? "block" : "none";
+        toggleBreakdownBtn.textContent = isHidden ? "Hide Price Breakdown" : "Show Price Breakdown";
+      });
+    }
+
+    // Trigger quote on input change
+    const dateInput = document.getElementById("booking-date");
+    const timeInput = document.getElementById("booking-start-time");
+    
+    const triggerQuote = () => {
+      updatePriceQuote(space._id, dateInput?.value, timeInput?.value, selectedDuration, hasSub);
+    };
+
+    if (dateInput) dateInput.addEventListener("change", triggerQuote);
+    if (timeInput) timeInput.addEventListener("change", triggerQuote);
+
     // Duration pills
     const pills = document.querySelectorAll(".booking-modal .duration-pill");
-    const priceAmountEl = document.getElementById("price-amount");
-    const multipliers = { hourly: 1, "half-day": 5, "full-day": 9 };
-    let selectedDuration = "hourly";
-
     pills.forEach(pill => {
       pill.addEventListener("click", () => {
         pills.forEach(p => p.classList.remove("active"));
         pill.classList.add("active");
         selectedDuration = pill.dataset.duration;
-        if (priceAmountEl) {
-          priceAmountEl.textContent = hasSub ? "Free (Monthly Pass)" : `৳${space.price * multipliers[selectedDuration]}`;
-        }
+        triggerQuote();
       });
     });
 

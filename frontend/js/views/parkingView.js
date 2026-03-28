@@ -105,7 +105,7 @@ const ParkingView = (function () {
     let spacesHtml = "<p>No spaces added yet.</p>";
     if (spaces.length) {
       spacesHtml = `<table class="spaces-table">
-          <thead><tr><th>Images</th><th>Price</th><th>Vehicle Types</th><th>Hours</th><th>Availability</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Images</th><th>Base Price</th><th>Capacity</th><th>Vehicle Types</th><th>Hours</th><th>Availability</th><th>Actions</th></tr></thead>
           <tbody>${spaces
           .map(s => {
             const imgs = (s.images || []).map(u => `<img src="${u}" alt="space" class="thumb"/>`).join(" ");
@@ -117,6 +117,7 @@ const ParkingView = (function () {
             return `<tr data-id="${s._id}">
               <td>${imgs}</td>
               <td>৳${s.price}</td>
+              <td>${s.capacity || 1} Spots</td>
               <td>${types}</td>
               <td>${hours}</td>
               <td>
@@ -182,9 +183,15 @@ const ParkingView = (function () {
             <label>Image URLs (alternative)</label>
             <input type="text" id="space-image-urls" placeholder="http://... , http://..." />
           </div>
-          <div class="form-group">
-            <label>Price (৳/hour)</label>
-            <input type="number" id="space-price" placeholder="e.g. 50" />
+          <div class="form-group row">
+            <div style="flex: 1;">
+              <label>Base Price (৳/hour)</label>
+              <input type="number" id="space-price" placeholder="e.g. 50" />
+            </div>
+            <div style="flex: 1; margin-left: 10px;">
+              <label>Total Capacity (Spots)</label>
+              <input type="number" id="space-capacity" placeholder="e.g. 10" value="1" min="1" />
+            </div>
           </div>
           <div class="form-group">
             <label>Vehicle Types (comma separated)</label>
@@ -313,7 +320,10 @@ const ParkingView = (function () {
               <div class="garage-card">
                 <div class="garage-images">${imgs || "<p>No images</p>"}</div>
                 <div class="garage-info">
-                  <h3>৳${s.price}/hour</h3>
+                  <div class="garage-price-row">
+                    <h3>৳${s.price}/hour</h3>
+                    <span class="capacity-tag">${s.capacity || 1} Total Spots</span>
+                  </div>
                   <p><strong>Address:</strong> ${address}</p>
                   <p><strong>Coordinates:</strong> ${coords}</p>
                   <p><strong>Vehicle Types:</strong> ${types || "Not specified"}</p>
@@ -384,8 +394,14 @@ const ParkingView = (function () {
             <button id="refresh-map-btn" class="btn-refresh" title="Refresh availability">🔄 Live Update</button>
           </div>
         </div>
+
+        <!-- Garage Listing Grid -->
+        <div class="garage-listing-section">
+          ${garagesHtml}
+        </div>
       </div>
     `;
+    console.log("Rendering garage listing:", spaces.length, "spaces");
     containerEl.innerHTML = html;
   }
 
@@ -454,14 +470,49 @@ const ParkingView = (function () {
           <div class="form-group">
             <label>Duration</label>
             <div class="duration-selector">
-              <button class="duration-pill active" data-duration="hourly">🕐 Hourly (1h) — ×1</button>
-              <button class="duration-pill" data-duration="half-day">🌤️ Half-Day (6h) — ×5</button>
-              <button class="duration-pill" data-duration="full-day">☀️ Full-Day (12h) — ×9</button>
+              <button class="duration-pill active" data-duration="hourly">🕐 Hourly (1h)</button>
+              <button class="duration-pill" data-duration="half-day">🌤️ Half-Day (6h)</button>
+              <button class="duration-pill" data-duration="full-day">☀️ Full-Day (12h)</button>
             </div>
           </div>
-          <div class="price-preview" id="price-preview">
-            <span>Estimated Total:</span>
-            <span class="price-amount" id="price-amount">${defaultPriceText}</span>
+
+          <div class="price-preview" id="price-preview-container">
+            <div class="price-header">
+              <span class="price-label">Real-time Pricing:</span>
+              <span class="price-amount" id="price-amount">${defaultPriceText}</span>
+            </div>
+            
+            <div id="price-indicators" class="price-indicators">
+              <!-- Indicators like "High Demand" will appear here -->
+              <span class="indicator-tag tag-green">Normal Demand</span>
+            </div>
+
+            <div id="price-breakdown-details" class="price-breakdown-details" style="display: none;">
+              <div class="breakdown-row">
+                <span>Base Price:</span>
+                <span id="breakdown-base">৳0</span>
+              </div>
+              <div class="breakdown-row peak" id="breakdown-peak-row" style="display: none;">
+                <span>Peak Hour Surge:</span>
+                <span id="breakdown-peak">+৳0</span>
+              </div>
+              <div class="breakdown-row surge" id="breakdown-surge-row" style="display: none;">
+                <span>Demand Surge:</span>
+                <span id="breakdown-surge">+৳0</span>
+              </div>
+              <div class="breakdown-row discount" id="breakdown-discount-row" style="display: none;">
+                <span>Off-Peak Discount:</span>
+                <span id="breakdown-discount">-৳0</span>
+              </div>
+              <div class="breakdown-row total-row">
+                <span>Final Total:</span>
+                <span id="breakdown-total">৳0</span>
+              </div>
+            </div>
+            
+            <button id="toggle-breakdown-btn" style="background:none; border:none; color:#0b5; font-size:12px; cursor:pointer; text-decoration:underline; padding:0; text-align:left; margin-top:5px;">
+              Show Price Breakdown
+            </button>
           </div>
 
           <div id="booking-error" class="error-message" style="display:none;"></div>

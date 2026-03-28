@@ -8,6 +8,7 @@ const App = (function () {
   let currentSpaces = []; // store fetched spaces for host
   let currentBookings = []; // store fetched bookings for driver
   let hostListenerAdded = false;
+  let userSubscriptions = []; // store driver's active and expired monthly passes
 
   // ── Initialize ──
   async function init() {
@@ -254,6 +255,16 @@ const App = (function () {
               headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
             });
             if (wRes.ok) waitlistEntries = await wRes.json();
+            
+            // Check for active monthly pass
+            const subRes = await fetch(`${API_BASE_URL}/subscriptions/my`, {
+              method: "GET",
+              headers: { "Authorization": `Bearer ${token}` }
+            });
+            if (subRes.ok) {
+              const subData = await subRes.json();
+              userSubscriptions = subData.subscriptions || [];
+            }
           } catch (e) { /* ignore */ }
           parkingView.renderDriverDashboard(data, waitlistEntries);
         } else if (role === "Admin") {
@@ -304,6 +315,13 @@ const App = (function () {
     if (!token) { showAuthPage(); return; }
 
     try {
+      const gRes = await fetch(`${API_BASE_URL}/garage-spaces/all`, {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      let garages = [];
+      if (gRes.ok) garages = await gRes.json();
+
       const response = await fetch(`${API_BASE_URL}/subscriptions/my`, {
         method: "GET",
         headers: { "Authorization": `Bearer ${token}` }
@@ -311,16 +329,20 @@ const App = (function () {
 
       if (response.ok) {
         const data = await response.json();
-        parkingView.renderSubscriptionPasses(data);
+        parkingView.renderSubscriptionPasses({ garages, subscriptions: data.subscriptions });
         
         setupLogoutButton();
         const backBtn = document.getElementById("back-to-dashboard-btn");
         if (backBtn) backBtn.addEventListener("click", () => loadDashboard(currentUser.role));
         
-        const purchaseBtn = document.getElementById("purchase-pass-btn");
-        if (purchaseBtn) {
-          purchaseBtn.addEventListener("click", handlePurchasePass);
-        }
+        document.querySelectorAll(".btn-buy-pass").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const garageId = btn.dataset.id;
+            const price = parseFloat(btn.dataset.price);
+            const slotType = btn.dataset.slotType || "Reserved";
+            handlePurchasePass(garageId, price, slotType, btn);
+          });
+        });
       } else if (response.status === 401) {
         logout();
       }
@@ -329,28 +351,35 @@ const App = (function () {
     }
   }
 
-  async function handlePurchasePass() {
+  async function handlePurchasePass(garageSpaceId, price, slotType, btnElement) {
+    if (!confirm(`Confirm purchase of Monthly Pass for ৳${price}?`)) return;
+
     const token = localStorage.getItem("token");
-    const msgEl = document.getElementById("subscription-status-msg");
-    if (msgEl) {
-      msgEl.innerHTML = "<span style='color: #007bff'>Processing payment...</span>";
-    }
+    const originalText = btnElement.innerText;
+    btnElement.innerText = "Processing...";
+    btnElement.disabled = true;
 
     try {
       const response = await fetch(`${API_BASE_URL}/subscriptions/purchase`, {
         method: "POST",
-        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ garageSpaceId, price, slotType })
       });
       const data = await response.json();
 
       if (response.ok) {
-        if (msgEl) msgEl.innerHTML = "<span style='color: #28a745'>Purchase successful! Enjoy your pass.</span>";
+        btnElement.innerText = "✅ Purchased!";
+        btnElement.classList.replace("btn-primary", "btn-success");
         setTimeout(() => loadSubscriptionPasses(), 1500);
       } else {
-        if (msgEl) msgEl.innerHTML = `<span style='color: #dc3545'>Error: ${data.message}</span>`;
+        alert(data.message || "Purchase failed.");
+        btnElement.innerText = originalText;
+        btnElement.disabled = false;
       }
     } catch (e) { 
-      if (msgEl) msgEl.innerHTML = "<span style='color: #dc3545'>Network error.</span>";
+      alert("Network error.");
+      btnElement.innerText = originalText;
+      btnElement.disabled = false;
     }
   }
 
@@ -1073,19 +1102,33 @@ const App = (function () {
       const space = allSpaces.find(s => s._id === spaceId);
       if (!space) { alert("Garage space not found"); return; }
 
-      parkingView.renderBookingForm(space);
-      setupBookingFormListeners(space);
+      const userSub = userSubscriptions.find(s => (s.garageSpace?._id || s.garageSpace) === spaceId);
+      const hasSubscription = userSub && userSub.status === "active";
+      const isExpired = userSub && userSub.status === "expired";
+
+      parkingView.renderBookingForm(space, hasSubscription, isExpired);
+      setupBookingFormListeners(space, hasSubscription, isExpired);
     } catch (err) {
       console.error("Error fetching space for booking:", err);
     }
   }
 
-  function setupBookingFormListeners(space) {
+  function setupBookingFormListeners(space, hasSub = false, isExpired = false) {
     // Close modal
     const closeBtn = document.getElementById("booking-modal-close");
     const overlay = document.getElementById("booking-modal-overlay");
     if (closeBtn) closeBtn.addEventListener("click", () => overlay.remove());
     if (overlay) overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+
+    // Renew link inside the modal (if pass is expired)
+    const renewLink = document.getElementById("renew-pass-link");
+    if (renewLink) {
+      renewLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (overlay) overlay.remove();
+        loadSubscriptionPasses();
+      });
+    }
 
     // Duration pills
     const pills = document.querySelectorAll(".booking-modal .duration-pill");
@@ -1099,7 +1142,7 @@ const App = (function () {
         pill.classList.add("active");
         selectedDuration = pill.dataset.duration;
         if (priceAmountEl) {
-          priceAmountEl.textContent = `৳${space.price * multipliers[selectedDuration]}`;
+          priceAmountEl.textContent = hasSub ? "Free (Monthly Pass)" : `৳${space.price * multipliers[selectedDuration]}`;
         }
       });
     });

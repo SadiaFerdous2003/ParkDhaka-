@@ -58,12 +58,24 @@ bookingSchema.pre("validate", async function (next) {
   const endH = h + config.hours;
   this.endTime = `${String(endH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 
-  // Compute totalPrice from garageSpace.price
+  // Compute totalPrice
   if (this.totalPrice == null) {
-    const GarageSpace = mongoose.model("GarageSpace");
-    const space = await GarageSpace.findById(this.garageSpace);
-    if (space) {
-      this.totalPrice = space.price * config.multiplier;
+    const Subscription = mongoose.model("Subscription");
+    const activeSub = await Subscription.findOne({
+      user: this.driver,
+      garageSpace: this.garageSpace,
+      status: "active",
+      endDate: { $gt: new Date() }
+    });
+    
+    if (activeSub) {
+      this.totalPrice = 0; // Free for subscribed commuters (monthly pass)
+    } else {
+      const GarageSpace = mongoose.model("GarageSpace");
+      const space = await GarageSpace.findById(this.garageSpace);
+      if (space) {
+        this.totalPrice = space.price * config.multiplier;
+      }
     }
   }
 

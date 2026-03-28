@@ -10,6 +10,16 @@ const subscriptionSchema = new mongoose.Schema({
     type: String,
     default: "monthly"
   },
+  garageSpace: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "GarageSpace",
+    required: true
+  },
+  slotType: {
+    type: String,
+    enum: ["Reserved", "Shared"],
+    default: "Reserved"
+  },
   price: {
     type: Number,
     required: true

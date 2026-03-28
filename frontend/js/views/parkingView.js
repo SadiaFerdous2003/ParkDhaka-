@@ -422,13 +422,26 @@ const ParkingView = (function () {
   }
 
   // ── Booking Form Modal ──
-  function renderBookingForm(space) {
+  function renderBookingForm(space, userHasSubscription = false, userPassExpired = false) {
+    const defaultPriceText = userHasSubscription ? "Free (Monthly Pass)" : `৳${space.price}`;
+    
+    let expiredWarning = "";
+    if (userPassExpired && !userHasSubscription) {
+      expiredWarning = `
+        <div style="background: #ffebee; color: #c62828; padding: 10px; border-radius: 4px; border: 1px solid #ef5350; margin: 10px 0; font-size: 14px;">
+          <strong>⚠️ Your Monthly Pass has expired!</strong><br />
+          You will be charged standard rates. <a href="#" id="renew-pass-link" style="color: #c62828; text-decoration: underline; font-weight: bold;">Renew Now</a>
+        </div>
+      `;
+    }
+
     const html = `
       <div class="booking-modal-overlay" id="booking-modal-overlay">
         <div class="booking-modal">
           <button class="modal-close" id="booking-modal-close">&times;</button>
           <h2>📅 Book a Parking Spot</h2>
           <p class="booking-space-info">Price: <strong>৳${space.price}/hour</strong></p>
+          ${expiredWarning}
 
           <div class="form-group">
             <label>Date</label>
@@ -448,7 +461,7 @@ const ParkingView = (function () {
           </div>
           <div class="price-preview" id="price-preview">
             <span>Estimated Total:</span>
-            <span class="price-amount" id="price-amount">৳${space.price}</span>
+            <span class="price-amount" id="price-amount">${defaultPriceText}</span>
           </div>
 
           <div id="booking-error" class="error-message" style="display:none;"></div>
@@ -582,30 +595,74 @@ const ParkingView = (function () {
   }
 
   function renderSubscriptionPasses(data) {
-    const { hasSubscription, subscription } = data;
-    
-    let passHtml = `
-      <div class="card" style="text-align: center; padding: 40px; margin: 0 auto; width: 100%; max-width: 500px;">
-        <h2>💳 Monthly Parking Pass</h2>
-        <p style="font-size: 1.2rem; margin: 20px 0;">Get unlimited access to select parking spots for 30 days.</p>
-        <p style="font-size: 2.5rem; font-weight: bold; color: #28a745; margin-bottom: 20px;">৳5000<span style="font-size: 1rem; color: #666;"> / month</span></p>
-        <button id="purchase-pass-btn" class="btn btn-primary" style="font-size: 1.2rem; padding: 12px 30px; border-radius: 8px;">Purchase Pass</button>
-        <div id="subscription-status-msg" style="margin-top: 20px; font-weight: bold;"></div>
-      </div>
-    `;
+    const { garages = [], subscriptions = [] } = data;
 
-    if (hasSubscription && subscription) {
-      const expDate = new Date(subscription.endDate).toLocaleDateString();
-      passHtml = `
-        <div class="card" style="text-align: center; border: 2px solid #28a745; margin: 0 auto; width: 100%; max-width: 500px;">
-          <h2 style="color: #28a745;">✅ Active Monthly Pass</h2>
-          <p style="font-size: 1.2rem; margin: 15px 0;">You have an active subscription!</p>
-          <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; display: inline-block; margin-bottom: 20px; width: 100%; box-sizing: border-box;">
-            <p style="margin: 10px 0;"><strong>Status:</strong> <span style="color: #28a745; text-transform: uppercase;">${subscription.status}</span></p>
-            <p style="margin: 10px 0;"><strong>Valid Until:</strong> ${expDate}</p>
+    // Filter to limit UI clutter: Show the 1 active pass (if any) and max 1 recent expired pass
+    const activeSubs = subscriptions.filter(s => s.status === "active" && new Date(s.endDate) > new Date());
+    const expiredSubs = subscriptions.filter(s => s.status === "expired" || new Date(s.endDate) <= new Date());
+    
+    // We only ever show 1 active pass (due to new global limit)
+    const displaySubs = [];
+    if (activeSubs.length > 0) displaySubs.push(activeSubs[0]);
+    if (expiredSubs.length > 0) displaySubs.push(expiredSubs[0]);
+
+    let activePassesHtml = `<p>No active or recent passes.</p>`;
+    if (displaySubs.length > 0) {
+      activePassesHtml = `<div class="garage-grid" style="grid-template-columns: 1fr; gap: 15px;">` + displaySubs.map(s => {
+        const isExpired = s.status === "expired" || new Date(s.endDate) <= new Date();
+        const validTill = new Date(s.endDate).toLocaleDateString();
+        
+        // Use Address, fallback to Host's Name's Garage, then fallback to "Central Garage"
+        const address = s.garageSpace?.location?.address;
+        const hostName = s.garageSpace?.host?.name;
+        const garageName = address || (hostName ? `${hostName}'s Garage` : "Central Garage");
+        
+        const statusClass = isExpired ? "status-cancelled" : "status-confirmed"; // reuse color classes
+        
+        return `
+          <div class="card" style="border: 2px solid ${isExpired ? '#dc3545' : '#28a745'}; padding: 20px; text-align: left;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+              <h3 style="margin: 0; color: #555;">📄 ${garageName}</h3>
+              <span class="status-label ${statusClass}" style="padding: 4px 10px; border-radius: 12px; font-weight: bold; font-size: 12px; background: ${isExpired ? '#ffebee' : '#e8f5e9'}; color: ${isExpired ? '#c62828' : '#2e7d32'};">
+                ${isExpired ? "Expired" : "Active"}
+              </span>
+            </div>
+            <p style="margin: 5px 0 0 30px;"><strong>Valid Till Date:</strong> ${validTill}</p>
+            ${isExpired ? `<button class="btn btn-primary btn-buy-pass" data-id="${s.garageSpace?._id || ''}" data-price="${s.price || 5000}" style="margin-top: 15px; width: auto; font-size: 14px; padding: 8px 16px;">Renew Pass</button>` : ''}
           </div>
-        </div>
-      `;
+        `;
+      }).join("") + `</div>`;
+    }
+
+    let plansHtml = `<p>No garage plans available.</p>`;
+    const openGarages = garages.filter(g => g.status === "Open");
+    
+    // Check if the user has ANY global active subscription
+    const hasAnyActive = activeSubs.length > 0;
+
+    if (openGarages.length > 0) {
+      plansHtml = `<div class="garage-grid" style="grid-template-columns: 1fr; gap: 15px;">` + openGarages.map(g => {
+        const monthlyPrice = parseInt(g.price || 100) * 50 || 5000;
+        
+        const address = g.location?.address;
+        const hostName = g.host?.name;
+        const garageName = address || (hostName ? `${hostName}'s Garage` : "Central Garage");
+        
+        return `
+          <div class="card" style="padding: 20px; text-align: left;">
+            <h3 style="margin-top: 0; margin-bottom: 15px; color: #555;">📦 ${garageName}</h3>
+            <div style="padding-left: 30px;">
+              <p style="margin: 5px 0;"><strong>Price:</strong> ৳${monthlyPrice}/month</p>
+              <p style="margin: 5px 0;"><strong>Validity:</strong> 30 days</p>
+              <p style="margin: 5px 0;"><strong>Slot Type:</strong> ${g.vehicleTypes?.includes("Car") ? "Reserved" : "Shared"}</p>
+            </div>
+            ${hasAnyActive ? 
+               `<p style="color: #28a745; font-weight: bold; margin-top: 15px; text-align: center;">Already Subscribed</p>` :
+               `<button class="btn btn-primary btn-buy-pass" data-id="${g._id}" data-price="${monthlyPrice}" data-slot-type="${g.vehicleTypes?.includes("Car") ? "Reserved" : "Shared"}" style="margin-top: 15px;">Subscribe</button>`
+            }
+          </div>
+        `;
+      }).join("") + `</div>`;
     }
 
     const html = `
@@ -617,8 +674,16 @@ const ParkingView = (function () {
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
-        <div class="dashboard-content" style="justify-content: center; display: flex;">
-          ${passHtml}
+        <div class="dashboard-content" style="display: flex; flex-direction: row; gap: 40px; align-items: flex-start; flex-wrap: wrap;">
+          <section style="flex: 1; min-width: 300px;">
+            <h2 style="margin-bottom: 15px; color: #444; font-size: 20px;">📄 Active Passes</h2>
+            ${activePassesHtml}
+          </section>
+          
+          <section style="flex: 1; min-width: 300px;">
+            <h2 style="margin-bottom: 15px; color: #444; font-size: 20px;">📦 Available Plans</h2>
+            ${plansHtml}
+          </section>
         </div>
       </div>
     `;

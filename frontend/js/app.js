@@ -28,6 +28,21 @@ const App = (function () {
     const token = localStorage.getItem("token");
     const savedUser = localStorage.getItem("user");
 
+    const hash = window.location.hash;
+    if (hash === "#payment-success") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const paymentId = urlParams.get('paymentId');
+      if (paymentId) {
+        showReceiptById(paymentId);
+      } else {
+        alert("✅ Payment successful!");
+      }
+      window.history.replaceState(null, null, " "); // clear hash
+    } else if (hash === "#payment-failed") {
+      alert("❌ Payment failed.");
+      window.history.replaceState(null, null, " ");
+    }
+
     if (token && savedUser) {
       try {
         currentUser = JSON.parse(savedUser);
@@ -225,6 +240,7 @@ const App = (function () {
             parkingView.renderGarageHostDashboard(data, spaces);
             currentSpaces = spaces;
             setupGarageHostListeners();
+            setupHostEarningsButton();
             loadNotifications(); // Fetch and render notifications
             // Initialize location picker map after rendering
             setTimeout(() => {
@@ -237,6 +253,7 @@ const App = (function () {
             currentSpaces = [];
             parkingView.renderGarageHostDashboard(data, []);
             setupGarageHostListeners();
+            setupHostEarningsButton();
             loadNotifications(); // Fetch and render notifications
             // Initialize location picker map after rendering
             setTimeout(() => {
@@ -263,6 +280,7 @@ const App = (function () {
         setupLogoutButton();
         setupViewGaragesButton();
         setupMyBookingsButton();
+        setupPaymentHistoryButton();
         setupMonthlyPassesButton();
         setupWaitlistActions();
       } else if (response.status === 401) {
@@ -1132,10 +1150,14 @@ const App = (function () {
           const data = await res.json();
 
           if (res.ok) {
-            if (successEl) { successEl.textContent = "✅ Booking confirmed!"; successEl.style.display = "block"; }
+            if (successEl) { successEl.textContent = "✅ Booking confirmed! Proceeding to payment..."; successEl.style.display = "block"; }
             confirmBtn.disabled = true;
-            confirmBtn.textContent = "Booked!";
-            setTimeout(() => { if (overlay) overlay.remove(); loadDashboard(currentUser.role); }, 1500);
+            confirmBtn.textContent = "Proceeding...";
+            setTimeout(() => { 
+                if (overlay) overlay.remove(); 
+                parkingView.renderPaymentModal(data._id, data.totalPrice);
+                setupPaymentListeners();
+            }, 1200);
           } else if (res.status === 409) {
             if (errorEl) { errorEl.textContent = data.message; errorEl.style.display = "block"; }
             // Show waitlist option
@@ -1278,6 +1300,140 @@ const App = (function () {
         }
       });
     }
+  }
+
+  // ── Payment Handlers (FR-14) ──
+  function setupPaymentListeners() {
+    const closeBtn = document.getElementById("payment-modal-close");
+    const overlay = document.getElementById("payment-modal-overlay");
+    if (closeBtn) closeBtn.addEventListener("click", () => {
+      overlay.remove();
+      loadDashboard(currentUser.role); 
+    });
+    if (overlay) overlay.addEventListener("click", (e) => { 
+      if (e.target === overlay) {
+        overlay.remove();
+        loadDashboard(currentUser.role);
+      }
+    });
+
+    const payBtn = document.getElementById("pay-now-btn");
+    if (payBtn) {
+      payBtn.addEventListener("click", async () => {
+        const bookingId = payBtn.dataset.bookingId;
+        const amount = payBtn.dataset.amount;
+        const methodEl = document.querySelector('input[name="payment-method"]:checked');
+        if (!methodEl) return;
+        const method = methodEl.value;
+
+        const errorEl = document.getElementById("payment-error");
+        const successEl = document.getElementById("payment-success");
+        if (errorEl) errorEl.style.display = "none";
+        
+        payBtn.disabled = true;
+        payBtn.textContent = "Processing...";
+
+        try {
+          const token = localStorage.getItem("token");
+          const res = await fetch(`${API_BASE_URL}/payments/initiate`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ bookingId, amount, paymentMethod: method })
+          });
+          const data = await res.json();
+          if (res.ok) {
+            if (method === "Cash") {
+              if (successEl) {
+                 successEl.textContent = "✅ " + data.message;
+                 successEl.style.display = "block";
+              }
+              setTimeout(() => { if (overlay) overlay.remove(); loadDashboard(currentUser.role); }, 1500);
+            } else {
+              if (successEl) {
+                 successEl.textContent = "Redirecting to payment gateway...";
+                 successEl.style.display = "block";
+              }
+              setTimeout(() => {
+                 window.location.href = data.gatewayUrl;
+              }, 1000);
+            }
+          } else {
+             if (errorEl) { errorEl.textContent = data.message || "Payment failed"; errorEl.style.display = "block"; }
+             payBtn.disabled = false;
+             payBtn.textContent = "Pay Now";
+          }
+        } catch (err) {
+           console.error(err);
+           if (errorEl) { errorEl.textContent = "Network error"; errorEl.style.display = "block"; }
+           payBtn.disabled = false;
+           payBtn.textContent = "Pay Now";
+        }
+      });
+    }
+  }
+
+  function setupPaymentHistoryButton() {
+    const btn = document.getElementById("payment-history-btn");
+    if (btn) btn.addEventListener("click", loadPaymentHistory);
+  }
+
+  async function loadPaymentHistory() {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/payments/user`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const payments = await res.json();
+        parkingView.renderPaymentHistory(payments);
+        setupLogoutButton();
+        setupViewGaragesButton();
+        setupReceiptViewListeners();
+      }
+    } catch (err) { console.error(err); }
+  }
+
+  function setupReceiptViewListeners() {
+    document.querySelectorAll(".view-receipt-btn").forEach(btn => {
+      btn.addEventListener("click", () => showReceiptById(btn.dataset.id));
+    });
+  }
+
+  async function showReceiptById(paymentId) {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/payments/user`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const payments = await res.json();
+        const payment = payments.find(p => p._id === paymentId);
+        if (payment) parkingView.renderReceiptModal(payment);
+      }
+    } catch (err) { console.error(err); }
+  }
+
+  // ── Host Earnings (FR-15) ──
+  function setupHostEarningsButton() {
+    const btn = document.getElementById("host-earnings-btn");
+    if (btn) btn.addEventListener("click", loadHostEarnings);
+  }
+
+  async function loadHostEarnings() {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/payments/host`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const { payments, totalEarnings } = await res.json();
+        parkingView.renderHostPayments(payments, totalEarnings);
+        setupLogoutButton();
+        setupViewGaragesButton();
+      }
+    } catch (err) { console.error(err); }
   }
 
   // ── Init ──

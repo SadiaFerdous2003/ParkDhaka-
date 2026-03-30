@@ -1081,6 +1081,58 @@ header h1 {
   width: auto;
 }
 
+/* ── Payment Option Radio Buttons ── */
+.payment-options {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.payment-option {
+  display: flex;
+  align-items: center;
+  padding: 15px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: #fff;
+}
+
+.payment-option:hover {
+  border-color: #0b5;
+  box-shadow: 0 2px 8px rgba(0, 181, 85, 0.1);
+}
+
+.payment-option input[type="radio"] {
+  margin-right: 15px;
+  accent-color: #0b5; /* Custom color for the radio button */
+  transform: scale(1.2); /* Slightly larger radio button */
+}
+
+.payment-option.selected {
+  border-color: #0b5;
+  box-shadow: 0 0 0 2px rgba(0, 181, 85, 0.3);
+  background-color: #f0fdf4;
+}
+
+.payment-option-details {
+  flex-grow: 1;
+}
+
+.payment-option-details h4 {
+  margin: 0 0 5px 0;
+  font-size: 16px;
+  color: #333;
+}
+
+.payment-option-details p {
+  margin: 0;
+  font-size: 13px;
+  color: #666;
+}
+
 /* ── Toggle Switch (iOS style) ── */
 .switch {
   position: relative;
@@ -1221,4 +1273,92 @@ input:checked + .slider:before {
   padding: 30px;
   color: #999;
   font-style: italic;
-}
+}
+
+/* ── Digital Receipt & Payment History (FR-15) ── */
+.receipt-modal {
+  border-top: 5px solid #28a745 !important;
+}
+
+.receipt-details {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-family: 'Courier New', Courier, monospace;
+  border: 1px solid #e0e0e0;
+}
+
+.receipt-details p {
+  display: flex;
+  justify-content: space-between;
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.history-container {
+  overflow-x: auto;
+}
+
+.status-Paid {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.status-Pending {
+  background-color: #fff3e0;
+  color: #ef6c00;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.status-Failed {
+  background-color: #ffebee;
+  color: #c62828;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.view-receipt-btn {
+  background-color: #0b5;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.2s;
+}
+
+.view-receipt-btn:hover {
+  background-color: #09a056;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .receipt-modal, .receipt-modal * {
+    visibility: visible;
+  }
+  .receipt-modal {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    box-shadow: none;
+    padding: 0;
+  }
+  .modal-close, .btn {
+    display: none !important;
+  }
+}
+

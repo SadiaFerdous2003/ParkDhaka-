@@ -77,6 +77,7 @@ const ParkingView = (function () {
             <button id="monthly-passes-btn" class="btn btn-primary">Monthly Passes</button>
             <button id="view-garages-btn" class="btn btn-primary">View Garages</button>
             <button id="my-bookings-btn" class="btn btn-primary">My Bookings</button>
+            <button id="payment-history-btn" class="btn btn-primary">Payment History</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
@@ -139,6 +140,7 @@ const ParkingView = (function () {
         <header class="dashboard-header">
           <h1>🏢 Garage Host Dashboard</h1>
           <div class="header-actions">
+            <button id="host-earnings-btn" class="btn btn-primary">Earnings & History</button>
             <button id="view-garages-btn" class="btn btn-primary">View Garages</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
@@ -384,6 +386,10 @@ const ParkingView = (function () {
             <button id="refresh-map-btn" class="btn-refresh" title="Refresh availability">🔄 Live Update</button>
           </div>
         </div>
+        
+        <div class="listings-container" style="margin-top: 20px;">
+          ${garagesHtml}
+        </div>
       </div>
     `;
     containerEl.innerHTML = html;
@@ -625,6 +631,198 @@ const ParkingView = (function () {
     containerEl.innerHTML = html;
   }
 
+  // ── Payment Modal (FR-14) ──
+  function renderPaymentModal(bookingId, amount) {
+    const html = `
+      <div class="booking-modal-overlay" id="payment-modal-overlay">
+        <div class="booking-modal" style="max-width: 450px;">
+          <button class="modal-close" id="payment-modal-close">&times;</button>
+          <h2>💳 Select Payment Method</h2>
+          <p class="booking-space-info">Total Amount: <strong>৳${amount}</strong></p>
+
+          <div class="payment-methods">
+            <label class="payment-method-label" style="display: block; margin: 10px 0;">
+              <input type="radio" name="payment-method" value="bKash" checked>
+              <span class="payment-name">bKash</span>
+            </label>
+            <label class="payment-method-label" style="display: block; margin: 10px 0;">
+              <input type="radio" name="payment-method" value="Nagad">
+              <span class="payment-name">Nagad</span>
+            </label>
+            <label class="payment-method-label" style="display: block; margin: 10px 0;">
+              <input type="radio" name="payment-method" value="Rocket">
+              <span class="payment-name">Rocket</span>
+            </label>
+            <label class="payment-method-label" style="display: block; margin: 10px 0;">
+              <input type="radio" name="payment-method" value="Card">
+              <span class="payment-name">Credit/Debit Card</span>
+            </label>
+            <label class="payment-method-label" style="display: block; margin: 10px 0;">
+              <input type="radio" name="payment-method" value="Cash">
+              <span class="payment-name">Cash (Pay at Garage)</span>
+            </label>
+          </div>
+
+          <div id="payment-error" class="error-message" style="display:none;"></div>
+          <div id="payment-success" class="success-message" style="display:none;"></div>
+
+          <button id="pay-now-btn" class="btn btn-primary" data-booking-id="${bookingId}" data-amount="${amount}" style="width: 100%; margin-top: 15px;">Pay Now</button>
+        </div>
+      </div>
+    `;
+    containerEl.insertAdjacentHTML("beforeend", html);
+  }
+
+  // ── Digital Receipt (FR-15) ──
+  function renderReceiptModal(payment) {
+    const modalId = `receipt-modal-${payment._id}`;
+    const date = new Date(payment.timestamp).toLocaleString();
+    const garageName = payment.garage?.location?.address || "Parking Spot";
+    const receiptId = payment.transactionId || payment._id.toString().slice(-8).toUpperCase();
+
+    const html = `
+      <div class="booking-modal-overlay" id="${modalId}-overlay">
+        <div class="booking-modal receipt-modal" style="max-width: 400px; border-top: 5px solid #28a745;">
+          <button class="modal-close" onclick="document.getElementById('${modalId}-overlay').remove()">&times;</button>
+          <div style="text-align: center; margin-bottom: 20px;">
+            <h2 style="margin: 0; color: #28a745;">📄 Digital Receipt</h2>
+            <p style="color: #666; font-size: 0.9rem;">Thank you for using ParkDhaka</p>
+          </div>
+          
+          <div class="receipt-details" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-family: monospace;">
+            <p style="display: flex; justify-content: space-between; margin: 5px 0;"><span>Receipt ID:</span> <strong>#${receiptId}</strong></p>
+            <p style="display: flex; justify-content: space-between; margin: 5px 0;"><span>Booking ID:</span> <span>${payment.booking?._id || "N/A"}</span></p>
+            <p style="display: flex; justify-content: space-between; margin: 5px 0;"><span>Garage:</span> <span>${garageName}</span></p>
+            <p style="display: flex; justify-content: space-between; margin: 5px 0;"><span>Method:</span> <span>${payment.paymentMethod}</span></p>
+            <p style="display: flex; justify-content: space-between; margin: 5px 0;"><span>Date:</span> <span>${date}</span></p>
+            <hr style="border: 0; border-top: 1px dashed #ccc; margin: 10px 0;">
+            <p style="display: flex; justify-content: space-between; margin: 5px 0; font-size: 1.2rem;"><span>Total Paid:</span> <strong>৳${payment.amount}</strong></p>
+          </div>
+
+          <div style="display: flex; gap: 10px;">
+            <button class="btn btn-primary" style="flex: 1;" onclick="window.print()">🖨️ Print</button>
+            <button class="btn btn-secondary" style="flex: 1;" onclick="document.getElementById('${modalId}-overlay').remove()">Close</button>
+          </div>
+        </div>
+      </div>
+    `;
+    containerEl.insertAdjacentHTML("beforeend", html);
+  }
+
+  // ── Payment History (FR-15) ──
+  function renderPaymentHistory(payments) {
+    let historyHtml = "<p class='no-bookings'>No payment records found.</p>";
+
+    if (payments && payments.length > 0) {
+      historyHtml = `
+        <table class="spaces-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Garage</th>
+              <th>Amount</th>
+              <th>Method</th>
+              <th>Status</th>
+              <th>Receipt</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${payments.map(p => {
+              const date = new Date(p.timestamp).toLocaleDateString();
+              const garageName = p.garage?.location?.address || "Parking Spot";
+              const statusClass = `status-${p.status}`;
+              return `
+                <tr>
+                  <td>${date}</td>
+                  <td>${garageName}</td>
+                  <td>৳${p.amount}</td>
+                  <td>${p.paymentMethod}</td>
+                  <td><span class="status-label ${statusClass}">${p.status}</span></td>
+                  <td><button class="view-receipt-btn btn-small" data-id="${p._id}">View</button></td>
+                </tr>
+              `;
+            }).join("")}
+          </tbody>
+        </table>
+      `;
+    }
+
+    const html = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>📑 Payment History</h1>
+          <div class="header-actions">
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
+          </div>
+        </header>
+        <div class="history-container card" style="padding: 20px;">
+          ${historyHtml}
+        </div>
+      </div>
+    `;
+    containerEl.innerHTML = html;
+  }
+
+  function renderHostPayments(payments, totalEarnings) {
+    let historyHtml = "<p class='no-bookings'>No earnings yet.</p>";
+
+    if (payments && payments.length > 0) {
+      historyHtml = `
+        <table class="spaces-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Driver</th>
+              <th>Garage</th>
+              <th>Amount</th>
+              <th>Method</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${payments.map(p => {
+              const date = new Date(p.timestamp).toLocaleDateString();
+              const driverName = p.user?.name || "Driver";
+              const garageName = p.garage?.location?.address || "Your Garage";
+              return `
+                <tr>
+                  <td>${date}</td>
+                  <td>${driverName}</td>
+                  <td>${garageName}</td>
+                  <td>৳${p.amount}</td>
+                  <td>${p.paymentMethod}</td>
+                </tr>
+              `;
+            }).join("")}
+          </tbody>
+        </table>
+      `;
+    }
+
+    const html = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>💰 Earnings Summary</h1>
+          <div class="header-actions">
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
+          </div>
+        </header>
+        <div class="dashboard-content" style="margin-bottom: 20px;">
+           <div class="card" style="background: #e8f5e9; border: 1px solid #c8e6c9;">
+            <h3>Total Lifetime Earnings</h3>
+            <p class="stat" style="color: #2e7d32;">৳${totalEarnings}</p>
+          </div>
+        </div>
+        <div class="history-container card" style="padding: 20px;">
+          <h2>Recent Transactions</h2>
+          ${historyHtml}
+        </div>
+      </div>
+    `;
+    containerEl.innerHTML = html;
+  }
+
   return {
     renderAuthPage,
     renderDriverDashboard,
@@ -637,6 +835,10 @@ const ParkingView = (function () {
     renderSubscriptionPasses,
     renderRescheduleModal,
     renderNotifications,
+    renderPaymentModal,
+    renderReceiptModal,
+    renderPaymentHistory,
+    renderHostPayments,
     showError
   };
 })();

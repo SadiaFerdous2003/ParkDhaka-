@@ -1,6 +1,11 @@
 const mongoose = require("mongoose");
 
 const paymentSchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true
+  },
   booking: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: "Booking", 
@@ -11,10 +16,30 @@ const paymentSchema = new mongoose.Schema({
     ref: "Subscription",
     required: false
   },
+  host: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true
+  },
+  garage: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "GarageSpace",
+    required: true
+  },
+
   paymentType: {
     type: String,
     enum: ["booking", "subscription"],
     default: "booking"
+  },
+  paymentMethod: {
+    type: String,
+    enum: ["bKash", "Nagad", "Rocket", "Card", "Cash"],
+    required: true
+  },
+  transactionId: {
+    type: String,
+    required: false
   },
   amount: { 
     type: Number, 
@@ -22,8 +47,8 @@ const paymentSchema = new mongoose.Schema({
   },
   status: { 
     type: String, 
-    enum: ["pending", "completed", "failed"], 
-    default: "pending" 
+    enum: ["Pending", "Paid", "Failed"], 
+    default: "Pending" 
   },
   timestamp: { 
     type: Date, 

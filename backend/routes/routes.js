@@ -180,11 +180,38 @@ router.put(
 
 // ── Payment endpoints ──
 router.post(
-  "/payments",
+  "/payments/initiate",
   authMiddleware,
   roleMiddleware(["Driver"]),
-  paymentController.processPayment
+  paymentController.initiatePayment
 );
+
+router.get(
+  "/payments/callback",
+  paymentController.handlePaymentCallback
+);
+
+router.get(
+  "/payments/verify/:bookingId",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  paymentController.verifyPayment
+);
+
+router.get(
+  "/payments/user",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  paymentController.getUserPayments
+);
+
+router.get(
+  "/payments/host",
+  authMiddleware,
+  roleMiddleware(["GarageHost"]),
+  paymentController.getHostPayments
+);
+
 
 // ── Subscription Pass (FR-11) ──
 router.post(

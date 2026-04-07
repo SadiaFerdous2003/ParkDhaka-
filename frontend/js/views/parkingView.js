@@ -253,17 +253,26 @@ const ParkingView = (function () {
           </div>
         </header>
         <div class="dashboard-content">
-          <div class="card">
-            <h3>Total Users</h3>
-            <p class="stat">${data.data.totalUsers}</p>
+          <div class="stats-section">
+            <div class="card">
+              <h3>Total Users</h3>
+              <p class="stat">${data.data.totalUsers}</p>
+            </div>
+            <div class="card">
+              <h3>Total Garages</h3>
+              <p class="stat">${data.data.totalGarages}</p>
+            </div>
+            <div class="card">
+              <h3>Total Transactions</h3>
+              <p class="stat">${data.data.totalTransactions}</p>
+            </div>
           </div>
-          <div class="card">
-            <h3>Total Garages</h3>
-            <p class="stat">${data.data.totalGarages}</p>
-          </div>
-          <div class="card">
-            <h3>Total Transactions</h3>
-            <p class="stat">${data.data.totalTransactions}</p>
+
+          <div class="user-management-section">
+            <h2>👥 User Management</h2>
+            <div id="users-list-container" style="margin-top: 20px;">
+              <p>Loading users...</p>
+            </div>
           </div>
         </div>
       </div>
@@ -558,6 +567,15 @@ const ParkingView = (function () {
                 <p><strong>Duration:</strong> ${durationLabel}</p>
                 <p><strong>Total:</strong> ৳${b.totalPrice}</p>
                 <p><strong>Garage:</strong> ${spaceName}</p>
+                ${b.isOverstayed ? `
+                <div class="overstay-fine-box">
+                  <p class="overstay-alert">⚠️ OVERSTAY DETECTED</p>
+                  <p><strong>Overstay Duration:</strong> ${b.overstayDuration} mins</p>
+                  <p><strong>Fine Amount:</strong> <span class="fine-amount">৳${b.overstayFine}</span></p>
+                  <p><strong>Status:</strong> <span class="payment-status ${b.paymentStatus}">${b.paymentStatus.toUpperCase()}</span></p>
+                  ${b.paymentStatus === 'pending' ? `<button class="btn-pay-fine" data-id="${b._id}">Pay Fine Now</button>` : ''}
+                </div>
+                ` : ''}
               </div>
               ${b.status === "confirmed" ? `
               <div class="booking-card-actions">
@@ -741,6 +759,53 @@ const ParkingView = (function () {
     containerEl.innerHTML = html;
   }
 
+  function renderUsersList(users) {
+    if (!users || users.length === 0) {
+      return "<p>No users found.</p>";
+    }
+
+    const usersTableHtml = `
+      <table class="users-table" style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+        <thead>
+          <tr style="background-color: #f0f0f0; border-bottom: 2px solid #ddd;">
+            <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Name</th>
+            <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Email</th>
+            <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Phone</th>
+            <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Role</th>
+            <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Status</th>
+            <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${users.map(user => {
+            const statusBadge = user.status === "active" 
+              ? '<span style="background-color: #d4edda; color: #155724; padding: 5px 10px; border-radius: 3px;">✅ Active</span>'
+              : '<span style="background-color: #f8d7da; color: #721c24; padding: 5px 10px; border-radius: 3px;">🚫 Suspended</span>';
+            
+            const actionBtn = user.status === "active"
+              ? `<button class="btn-suspend" data-user-id="${user._id}" style="background-color: #dc3545; color: white; padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer;">Suspend</button>`
+              : `<button class="btn-activate" data-user-id="${user._id}" style="background-color: #28a745; color: white; padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer;">Activate</button>`;
+            
+            return `
+              <tr style="border-bottom: 1px solid #ddd;">
+                <td style="padding: 10px; border: 1px solid #ddd;">${user.name}</td>
+                <td style="padding: 10px; border: 1px solid #ddd;">${user.email}</td>
+                <td style="padding: 10px; border: 1px solid #ddd;">${user.phone || 'N/A'}</td>
+                <td style="padding: 10px; border: 1px solid #ddd;">
+                  <span style="background-color: #e7f3ff; color: #004085; padding: 3px 8px; border-radius: 3px;">${user.role}</span>
+                </td>
+                <td style="padding: 10px; text-align: center; border: 1px solid #ddd;">${statusBadge}</td>
+                <td style="padding: 10px; text-align: center; border: 1px solid #ddd;">${actionBtn}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+
+    return usersTableHtml;
+  }
+
   return {
     renderAuthPage,
     renderDriverDashboard,
@@ -753,6 +818,7 @@ const ParkingView = (function () {
     renderSubscriptionPasses,
     renderRescheduleModal,
     renderNotifications,
+    renderUsersList,
     showError
   };
 })();

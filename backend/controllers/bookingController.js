@@ -328,3 +328,26 @@ exports.getBookingQuote = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+// PUT /api/bookings/:id/pay-fine — pay overstay fine
+exports.payFine = async (req, res) => {
+  try {
+    const driverId = req.user && req.user.userId;
+    const booking = await Booking.findById(req.params.id);
+
+    if (!booking) return res.status(404).json({ message: "Booking not found" });
+    if (booking.driver.toString() !== driverId) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+    if (!booking.isOverstayed) {
+      return res.status(400).json({ message: "No overstay fine detected for this booking" });
+    }
+
+    booking.paymentStatus = "paid";
+    await booking.save();
+
+    res.json({ message: "Fine paid successfully", booking });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};

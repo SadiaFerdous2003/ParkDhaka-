@@ -36,12 +36,16 @@ const waitlistController = require("../controllers/waitlistController");
 const notificationController = require("../controllers/notificationController");
 const paymentController = require("../controllers/paymentController");
 const subscriptionController = require("../controllers/subscriptionController");
+const adminController = require("../controllers/adminController");
 
 const { authMiddleware, roleMiddleware } = require("../middleware/auth");
 
 // auth
 router.post("/register", authController.register);
 router.post("/login", authController.login);
+// OTP endpoints
+router.post("/auth/request-otp", authController.requestOtp);
+router.post("/auth/verify-otp", authController.verifyOtp);
 
 // existing parking endpoints
 router.get("/parkings", parkingController.getParkings);
@@ -112,6 +116,35 @@ router.get(
   dashboardController.getAdminDashboard
 );
 
+// Admin user management
+router.get(
+  "/admin/users",
+  authMiddleware,
+  roleMiddleware(["Admin"]),
+  adminController.listUsers
+);
+
+router.put(
+  "/admin/users/:id/suspend",
+  authMiddleware,
+  roleMiddleware(["Admin"]),
+  adminController.suspendUser
+);
+
+router.put(
+  "/admin/users/:id/activate",
+  authMiddleware,
+  roleMiddleware(["Admin"]),
+  adminController.activateUser
+);
+
+router.put(
+  "/admin/users/:id/role",
+  authMiddleware,
+  roleMiddleware(["Admin"]),
+  adminController.changeRole
+);
+
 // ── Booking endpoints (FR-7, FR-8) ──
 router.post(
   "/bookings",
@@ -142,6 +175,12 @@ router.put(
   authMiddleware,
   roleMiddleware(["Driver"]),
   bookingController.rescheduleBooking
+);
+router.put(
+  "/bookings/:id/pay-fine",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  bookingController.payFine
 );
 router.get(
   "/bookings/host",

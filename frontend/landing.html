@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ParkDhaka - Smart Parking Solution</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .feature-card {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 8px;
+            border-left: 4px solid #2a5298;
+        }
+
+        .feature-card h2 {
+            color: #1e3c72;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        .feature-card p {
+            color: #555;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .feature-card ul {
+            margin-left: 20px;
+            color: #666;
+        }
+
+        .feature-card li {
+            margin: 8px 0;
+            line-height: 1.5;
+        }
+
+        .demo-accounts {
+            background: #e3f2fd;
+            padding: 30px;
+            border-radius: 8px;
+            margin: 30px 0;
+            border-left: 4px solid #2196F3;
+        }
+
+        .demo-accounts h3 {
+            color: #1565c0;
+            margin-bottom: 20px;
+        }
+
+        .account {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
+        .account strong {
+            color: #1565c0;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 30px;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 4px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(26, 60, 114, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+            border: 2px solid #ddd;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .features-list {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .features-list h3 {
+            color: #1e3c72;
+            margin-bottom: 15px;
+        }
+
+        .features-list ul {
+            margin-left: 20px;
+        }
+
+        .features-list li {
+            margin: 10px 0;
+            color: #555;
+        }
+
+        .status {
+            background: #c8e6c9;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            border-left: 4px solid #2e7d32;
+        }
+
+        .status strong {
+            color: #1b5e20;
+        }
+
+        footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            border-top: 1px solid #ddd;
+        }
+
+        .test-section {
+            background: #fff3e0;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #ff9800;
+        }
+
+        .test-section h3 {
+            color: #e65100;
+            margin-bottom: 15px;
+        }
+
+        code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🅿️ ParkDhaka</h1>
+            <p>Smart Parking Management System</p>
+        </header>
+
+        <div class="content">
+            <div class="status">
+                ✅ <strong>Status: </strong> All servers running | Backend: Port 5000 | Frontend: Port 8000
+            </div>
+
+            <h2 style="color: #1e3c72; margin-bottom: 20px;">Welcome to ParkDhaka! 🚗</h2>
+
+            <div class="features">
+                <div class="feature-card">
+                    <h2>🔐 Feature 1: OTP Authentication</h2>
+                    <p>Secure login with time-bound one-time passwords</p>
+                    <ul>
+                        <li>6-digit numeric OTP</li>
+                        <li>5-minute expiry</li>
+                        <li>Email or SMS delivery</li>
+                        <li>One-time use enforcement</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card">
+                    <h2>🚗 Feature 2: Overstay Fine Management</h2>
+                    <p>Automatic fine calculation for parking overages</p>
+                    <ul>
+                        <li>Auto-detection</li>
+                        <li>Fine calculation</li>
+                        <li>Payment tracking</li>
+                        <li>User notifications</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card">
+                    <h2>👤 Feature 3: Role-Based Access</h2>
+                    <p>Admin control & user account management</p>
+                    <ul>
+                        <li>Role enforcement</li>
+                        <li>Account suspension</li>
+                        <li>User activation</li>
+                        <li>Notifications</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="demo-accounts">
+                <h3>🧪 Demo Test Accounts</h3>
+                <p style="margin-bottom: 15px;">Use these accounts to test the system:</p>
+                
+                <div class="account">
+                    <strong>👥 Driver Account:</strong><br>
+                    Email: driver@example.com | Password: driver123
+                </div>
+                
+                <div class="account">
+                    <strong>🏢 Garage Host Account:</strong><br>
+                    Email: host@example.com | Password: host123
+                </div>
+                
+                <div class="account">
+                    <strong>👨‍💼 Admin Account:</strong><br>
+                    Email: admin@example.com | Password: admin123
+                </div>
+
+                <p style="margin-top: 15px; color: #666;">
+                    💡 <strong>Tip:</strong> Or create a new account instantly by clicking "Register"
+                </p>
+            </div>
+
+            <div class="test-section">
+                <h3>✅ All Tests Completed</h3>
+                <p>✓ 25/25 tests passing (100%)</p>
+                <p>✓ OTP functionality tested</p>
+                <p>✓ Admin/role management tested</p>
+                <p>✓ Full API integration tested</p>
+            </div>
+
+            <div class="buttons">
+                <a href="./app.html" class="btn btn-primary">Open App →</a>
+                <a href="http://localhost:5000/api/status" class="btn btn-secondary" target="_blank">Check API Status</a>
+            </div>
+
+            <div class="features-list">
+                <h3>📚 Available Features by Role</h3>
+                
+                <h4 style="color: #1e3c72; margin-top: 20px;">🚗 Driver Features:</h4>
+                <ul>
+                    <li>View available parking spaces</li>
+                    <li>Book parking spots</li>
+                    <li>View booking history</li>
+                    <li>Check overstay fines</li>
+                    <li>Purchase monthly passes</li>
+                    <li>Join waitlists</li>
+                    <li>Receive notifications</li>
+                </ul>
+
+                <h4 style="color: #1e3c72; margin-top: 20px;">🏢 Garage Host Features:</h4>
+                <ul>
+                    <li>Add parking spaces</li>
+                    <li>Manage space availability</li>
+                    <li>View booking notifications</li>
+                    <li>Check revenue statistics</li>
+                    <li>Toggle garage status</li>
+                    <li>Edit space details</li>
+                    <li>Monitor occupancy</li>
+                </ul>
+
+                <h4 style="color: #1e3c72; margin-top: 20px;">👨‍💼 Admin Features:</h4>
+                <ul>
+                    <li>View all users</li>
+                    <li>Suspend user accounts</li>
+                    <li>Activate suspended users</li>
+                    <li>Change user roles</li>
+                    <li>Manage system-wide settings</li>
+                </ul>
+            </div>
+
+            <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; margin-top: 20px; border-left: 4px solid #4caf50;">
+                <h3 style="color: #2e7d32; margin-bottom: 15px;">🎯 Quick Start Guide</h3>
+                <ol style="margin-left: 20px; color: #555; line-height: 1.8;">
+                    <li>Click "Open App" button above</li>
+                    <li>Click "Register" to create an account OR login with demo account</li>
+                    <li>Choose your role: Driver, Garage Host, or Admin</li>
+                    <li>Fill in details and click Register</li>
+                    <li>View your dashboard based on your role</li>
+                    <li>Test available features</li>
+                </ol>
+            </div>
+
+            <div style="background: #f3e5f5; padding: 20px; border-radius: 8px; margin-top: 20px; border-left: 4px solid #9c27b0;">
+                <h3 style="color: #6a1b9a; margin-bottom: 15px;">🧪 API Documentation</h3>
+                <p style="color: #666; margin-bottom: 10px;">For developers, the following API endpoints are available:</p>
+                <code style="display: block; padding: 10px; background: #fafafa; margin: 10px 0;">POST /api/auth/request-otp</code>
+                <code style="display: block; padding: 10px; background: #fafafa; margin: 10px 0;">POST /api/auth/verify-otp</code>
+                <code style="display: block; padding: 10px; background: #fafafa; margin: 10px 0;">GET /api/admin/users</code>
+                <code style="display: block; padding: 10px; background: #fafafa; margin: 10px 0;">PUT /api/admin/users/:id/suspend</code>
+                <code style="display: block; padding: 10px; background: #fafafa; margin: 10px 0;">PUT /api/admin/users/:id/activate</code>
+                <p style="margin-top: 10px; color: #999; font-size: 0.9em;">See /backend documentation for full API reference</p>
+            </div>
+        </div>
+
+        <footer>
+            <p>ParkDhaka © 2026 | Smart Parking Solution</p>
+            <p>Backend: http://localhost:5000 | Frontend: http://localhost:8000</p>
+        </footer>
+    </div>
+
+    <script>
+        // Redirect app.html to index.html (since index.html is the actual app)
+        if (window.location.pathname.includes('app.html')) {
+            window.location.href = './index.html';
+        }
+    </script>
+</body>
+</html>

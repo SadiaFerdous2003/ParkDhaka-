@@ -50,6 +50,23 @@ const bookingSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now
+  },
+  isOverstayed: {
+    type: Boolean,
+    default: false
+  },
+  overstayFine: {
+    type: Number,
+    default: 0
+  },
+  overstayDuration: {
+    type: Number, // In minutes
+    default: 0
+  },
+  paymentStatus: {
+    type: String,
+    enum: ["pending", "paid"],
+    default: "pending"
   }
 });
 

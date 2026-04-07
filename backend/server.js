@@ -8,6 +8,10 @@ const connectDB = require("./config/db");
 const routes = require("./routes/routes");
 
 const app = express();
+const { startOverstayChecker } = require("./utils/overstayManager");
+
+// Start Overstay Checker (Check every 1 minute)
+startOverstayChecker();
 
 // Create uploads directory if it doesn't exist
 const fs = require("fs");

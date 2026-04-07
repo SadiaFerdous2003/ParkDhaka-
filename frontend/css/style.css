@@ -1342,3 +1342,59 @@ input:checked + .slider:before {
 }
 .garage-price-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
 .capacity-tag { background: #f0f0f0; color: #666; font-size: 12px; padding: 4px 10px; border-radius: 20px; border: 1px solid #ddd; font-weight: 500; }
+/* Overstay Fines */
+.overstay-fine-box {
+  margin-top: 15px;
+  padding: 15px;
+  background: #fff5f5;
+  border: 1px solid #ffcfcf;
+  border-radius: 8px;
+}
+
+.overstay-alert {
+  color: #df2020;
+  font-weight: 800;
+  font-size: 14px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.fine-amount {
+  color: #df2020;
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.payment-status {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.payment-status.pending {
+  background: #fff3e0;
+  color: #f57c00;
+}
+
+.payment-status.paid {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.btn-pay-fine {
+  margin-top: 10px;
+  width: 100%;
+  padding: 10px;
+  background: #df2020;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.btn-pay-fine:hover {
+  background: #b91a1a;
+}

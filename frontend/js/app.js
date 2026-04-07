@@ -269,6 +269,7 @@ const App = (function () {
           parkingView.renderDriverDashboard(data, waitlistEntries);
         } else if (role === "Admin") {
           parkingView.renderAdminDashboard(data);
+          setupAdminSection(); // Load admin user management
         }
 
         setupLogoutButton();
@@ -536,6 +537,108 @@ const App = (function () {
         }
       });
     }
+  }
+
+  // ── Admin User Management Functions ──
+  async function loadAdminUsers() {
+    const token = localStorage.getItem("token");
+    if (!token) { showAuthPage(); return; }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/users`, {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+      });
+
+      if (response.ok) {
+        const users = await response.json();
+        const usersListContainer = document.getElementById("users-list-container");
+        if (usersListContainer) {
+          usersListContainer.innerHTML = parkingView.renderUsersList(users);
+          setupAdminUserActions();
+        }
+      } else if (response.status === 403) {
+        parkingView.showError("auth", "Unauthorized - Admin access required");
+      } else {
+        parkingView.showError("auth", "Failed to load users");
+      }
+    } catch (error) {
+      console.error("Error loading users:", error);
+      parkingView.showError("auth", "Network error loading users");
+    }
+  }
+
+  function setupAdminUserActions() {
+    const suspendBtns = document.querySelectorAll(".btn-suspend");
+    const activateBtns = document.querySelectorAll(".btn-activate");
+
+    suspendBtns.forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        const userId = btn.dataset.userId;
+        if (confirm("Are you sure you want to suspend this user? They will be blocked from accessing their account.")) {
+          await suspendUser(userId);
+        }
+      });
+    });
+
+    activateBtns.forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        const userId = btn.dataset.userId;
+        if (confirm("Are you sure you want to activate this user?")) {
+          await activateUser(userId);
+        }
+      });
+    });
+  }
+
+  async function suspendUser(userId) {
+    const token = localStorage.getItem("token");
+    if (!token) { showAuthPage(); return; }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/suspend`, {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+      });
+
+      if (response.ok) {
+        alert("User suspended successfully ✓");
+        await loadAdminUsers(); // Refresh the list
+      } else {
+        const data = await response.json();
+        alert(`Failed to suspend user: ${data.message || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("Error suspending user:", error);
+      alert("Network error while suspending user");
+    }
+  }
+
+  async function activateUser(userId) {
+    const token = localStorage.getItem("token");
+    if (!token) { showAuthPage(); return; }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/activate`, {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+      });
+
+      if (response.ok) {
+        alert("User activated successfully ✓");
+        await loadAdminUsers(); // Refresh the list
+      } else {
+        const data = await response.json();
+        alert(`Failed to activate user: ${data.message || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("Error activating user:", error);
+      alert("Network error while activating user");
+    }
+  }
+
+  function setupAdminSection() {
+    loadAdminUsers(); // Load users when dashboard loads
   }
 
   function logout() {
@@ -1363,6 +1466,29 @@ const App = (function () {
         if (!booking) return;
         parkingView.renderRescheduleModal(booking);
         setupRescheduleModalListeners(booking);
+      });
+    });
+
+    // Pay Fine
+    document.querySelectorAll(".btn-pay-fine").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const bookingId = btn.dataset.id;
+        if (!confirm("Proceed to pay the overstay fine?")) return;
+        
+        const token = localStorage.getItem("token");
+        try {
+          const res = await fetch(`${API_BASE_URL}/bookings/${bookingId}/pay-fine`, {
+            method: "PUT",
+            headers: { "Authorization": `Bearer ${token}` }
+          });
+          const data = await res.json();
+          if (res.ok) {
+            alert("Fine paid successfully!");
+            loadMyBookings();
+          } else {
+            alert(data.message || "Failed to pay fine");
+          }
+        } catch (err) { console.error(err); alert("Network error"); }
       });
     });
   }

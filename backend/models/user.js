@@ -4,11 +4,17 @@ const bcrypt = require("bcryptjs");
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
+  phone: { type: String, unique: true, sparse: true },
   password: { type: String, required: true },
   role: {
     type: String,
     enum: ["Driver","GarageHost","Admin"],
     default: "Driver"
+  },
+  status: {
+    type: String,
+    enum: ["active", "suspended"],
+    default: "active"
   },
   createdAt: { type: Date, default: Date.now }
 });

@@ -140,18 +140,16 @@ const ParkingView = (function () {
         <header class="dashboard-header">
           <h1>🏢 Garage Host Dashboard</h1>
           <div class="header-actions">
+            <!-- Notification Bell (FR-18) -->
+            <button id="notifications-btn" class="btn-icon bell-btn" title="View Notifications">
+              🔔 <span id="notif-badge" class="badge" style="display:none">0</span>
+            </button>
+
             <button id="host-earnings-btn" class="btn btn-primary">Earnings & History</button>
             <button id="view-garages-btn" class="btn btn-primary">View Garages</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
-
-        <section class="notifications-section">
-          <h2>🔔 Notifications</h2>
-          <div id="notifications-list" class="notification-list">
-            <p class="no-notifications">Loading notifications...</p>
-          </div>
-        </section>
 
         <div class="dashboard-content">
           <div class="card">
@@ -566,25 +564,61 @@ const ParkingView = (function () {
   }
 
   function renderNotifications(notifications) {
-    const listEl = document.getElementById("notifications-list");
-    if (!listEl) return;
-
+    // This is now used for the badge count ONLY
+    const badgeEl = document.getElementById("notif-badge");
     if (!notifications || notifications.length === 0) {
-      listEl.innerHTML = '<p class="no-notifications">No notifications yet.</p>';
+      if (badgeEl) badgeEl.style.display = "none";
       return;
     }
+    const unreadCount = notifications.filter(n => !n.readStatus).length;
+    if (badgeEl) {
+      if (unreadCount > 0) {
+        badgeEl.textContent = unreadCount;
+        badgeEl.style.display = "flex";
+      } else {
+        badgeEl.style.display = "none";
+      }
+    }
+  }
 
-    listEl.innerHTML = notifications.map(n => `
-      <div class="notification-item ${n.readStatus ? '' : 'unread'}" data-id="${n._id}">
-        <div class="notification-content">
-          <span class="notification-msg">${n.message}</span>
-          <span class="notification-time">${new Date(n.timestamp).toLocaleString()}</span>
+  function renderHostNotificationsPage(notifications) {
+    let listHtml = '<div class="no-notifications-full">📭 You are all caught up! No notifications here.</div>';
+    
+    if (notifications && notifications.length > 0) {
+      listHtml = notifications.map(n => `
+        <div class="notification-card-full ${n.readStatus ? '' : 'unread'}" data-id="${n._id}">
+           <div class="notif-icon">${n.type === 'booking' ? '📅' : '🔔'}</div>
+           <div class="notif-body">
+              <p class="notif-text">${n.message}</p>
+              <span class="notif-date">${new Date(n.timestamp).toLocaleString()}</span>
+           </div>
+           <div class="notif-actions-full">
+              ${n.readStatus ? '<span class="status-read">Read</span>' : `
+                <button class="btn-mark-read-full" data-id="${n._id}">Mark as Read</button>
+              `}
+           </div>
         </div>
-        <div class="notification-actions">
-          ${n.readStatus ? '' : `<button class="btn-mark-read" data-id="${n._id}">Mark as Read</button>`}
+      `).join("");
+    }
+
+    const html = `
+      <div class="dashboard host-notif-page">
+        <header class="dashboard-header">
+          <h1>🔔 Notifications</h1>
+          <div class="header-actions">
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
+          </div>
+        </header>
+
+        <div class="notif-page-content">
+           <div class="notif-list-full">
+              ${listHtml}
+           </div>
         </div>
       </div>
-    `).join("");
+    `;
+    containerEl.innerHTML = html;
   }
 
   function renderSubscriptionPasses(data) {
@@ -933,6 +967,7 @@ const ParkingView = (function () {
     renderReceiptModal,
     renderPaymentHistory,
     renderHostEarnings,
+    renderHostNotificationsPage,
     showError
   };
 })();

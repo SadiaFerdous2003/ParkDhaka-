@@ -860,8 +860,15 @@ const App = (function () {
 
       // Mark as Read handler
       document.addEventListener('click', (e) => {
-        if (e.target.matches('.btn-mark-read')) {
+        if (e.target.matches('.btn-mark-read-smart') || e.target.matches('.btn-mark-read-full')) {
           handleMarkNotificationAsRead(e.target.dataset.id);
+        }
+      });
+
+      // Notification Page Navigation
+      document.addEventListener('click', (e) => {
+        if (e.target.closest("#notifications-btn")) {
+          loadFullNotificationsPage();
         }
       });
 
@@ -928,11 +935,35 @@ const App = (function () {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (res.ok) {
-        loadNotifications(); // Reload to update UI
+        // If we are on the notifications page, reload it, otherwise just refresh badge
+        if (document.querySelector('.host-notif-page')) {
+          loadFullNotificationsPage();
+        } else {
+          loadNotifications();
+        }
       }
     } catch (err) {
       console.error(err);
     }
+  }
+
+  async function loadFullNotificationsPage() {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/notifications`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const notifications = await res.json();
+        parkingView.renderHostNotificationsPage(notifications);
+        setupLogoutButton();
+        setupViewGaragesButton();
+        // Add specific back button for notif page
+        const backBtn = document.getElementById("back-to-dashboard-btn");
+        if (backBtn) backBtn.addEventListener("click", () => loadDashboard(currentUser.role));
+      }
+    } catch (e) { console.error(e); }
   }
 
   async function handleAddSpace() {

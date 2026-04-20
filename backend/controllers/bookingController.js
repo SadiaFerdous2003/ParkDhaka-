@@ -80,9 +80,11 @@ exports.createBooking = async (req, res) => {
     // Notification for Host
     try {
       const driver = await User.findById(driverId);
+      const spaceDisplayName = space.location?.address || space.name || `Garage Space #${space._id.toString().slice(-4)}`;
+      
       const newNotification = new Notification({
         host: space.host,
-        message: `New booking from ${driver.name} for space ${space.location.address || space._id}`,
+        message: `New booking from ${driver.name} for ${spaceDisplayName}`,
         type: "booking",
         relatedId: saved._id
       });

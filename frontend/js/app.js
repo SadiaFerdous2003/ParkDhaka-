@@ -1423,17 +1423,148 @@ const App = (function () {
   async function loadHostEarnings() {
     const token = localStorage.getItem("token");
     if (!token) return;
+    
     try {
-      const res = await fetch(`${API_BASE_URL}/payments/host`, {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const { payments, totalEarnings } = await res.json();
-        parkingView.renderHostPayments(payments, totalEarnings);
+      // Parallel fetch for efficiency
+      const [statsRes, bankingRes, withdrawalsRes, paymentsRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/host/earnings-stats`, { headers: { "Authorization": `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/host/banking`, { headers: { "Authorization": `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/host/withdrawals`, { headers: { "Authorization": `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/payments/host`, { headers: { "Authorization": `Bearer ${token}` } })
+      ]);
+
+      if (statsRes.ok && bankingRes.ok && withdrawalsRes.ok && paymentsRes.ok) {
+        const stats = await statsRes.json();
+        const banking = await bankingRes.json();
+        const withdrawals = await withdrawalsRes.json();
+        const paymentsData = await paymentsRes.json();
+        const payments = Array.isArray(paymentsData) ? paymentsData : paymentsData.payments;
+
+        parkingView.renderHostEarnings(stats, banking, withdrawals, payments);
+        setupHostEarningsListeners(stats.availableBalance);
         setupLogoutButton();
         setupViewGaragesButton();
+        const backBtn = document.getElementById("back-to-dashboard-btn");
+        if (backBtn) backBtn.addEventListener("click", () => loadDashboard(currentUser.role));
       }
-    } catch (err) { console.error(err); }
+    } catch (err) { 
+      console.error("Error loading host earnings:", err); 
+    }
+  }
+
+  function setupHostEarningsListeners(balance) {
+    // Banking Toggle
+    const editBankBtn = document.getElementById("edit-banking-btn");
+    const cancelBankBtn = document.getElementById("cancel-banking-btn");
+    const bankingDisplay = document.getElementById("banking-display");
+    const bankingForm = document.getElementById("banking-form");
+    
+    if (editBankBtn) {
+      editBankBtn.addEventListener("click", () => {
+        bankingDisplay.style.display = "none";
+        bankingForm.style.display = "block";
+      });
+    }
+
+    if (cancelBankBtn) {
+      cancelBankBtn.addEventListener("click", () => {
+        bankingDisplay.style.display = "block";
+        bankingForm.style.display = "none";
+      });
+    }
+
+    // Save Banking
+    const saveBankBtn = document.getElementById("save-banking-btn");
+    if (saveBankBtn) {
+      saveBankBtn.addEventListener("click", async () => {
+        const accountType = document.getElementById("bank-type").value;
+        const accountNumber = document.getElementById("bank-number").value.trim();
+        const accountName = document.getElementById("bank-name").value.trim();
+        const errorEl = document.getElementById("banking-error");
+
+        if (!accountNumber || !accountName) {
+          errorEl.textContent = "Please fill all banking fields";
+          return;
+        }
+
+        const token = localStorage.getItem("token");
+        try {
+          const res = await fetch(`${API_BASE_URL}/host/banking`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ accountType, accountNumber, accountName })
+          });
+          if (res.ok) {
+            loadHostEarnings(); 
+          } else {
+            const data = await res.json();
+            errorEl.textContent = data.message || "Failed to save banking info";
+          }
+        } catch (e) { errorEl.textContent = "Network error"; }
+      });
+    }
+
+    // Withdrawal Toggle
+    const showWithdrawBtn = document.getElementById("show-withdraw-form-btn");
+    const closeWithdrawBtn = document.getElementById("close-withdraw-btn");
+    const withdrawForm = document.getElementById("withdraw-form-container");
+    if (showWithdrawBtn) {
+      showWithdrawBtn.addEventListener("click", () => {
+        withdrawForm.style.display = "block";
+      });
+    }
+    if (closeWithdrawBtn) {
+      closeWithdrawBtn.addEventListener("click", () => {
+        withdrawForm.style.display = "none";
+      });
+    }
+
+    // Submit Withdrawal
+    const submitWithdrawBtn = document.getElementById("submit-withdraw-btn");
+    if (submitWithdrawBtn) {
+      submitWithdrawBtn.addEventListener("click", async () => {
+        const amount = parseFloat(document.getElementById("withdraw-amount").value);
+        const errorEl = document.getElementById("withdraw-error");
+        const successEl = document.getElementById("withdraw-success");
+        
+        errorEl.textContent = "";
+        successEl.textContent = "";
+
+        if (isNaN(amount) || amount <= 0) {
+          errorEl.textContent = "Please enter a valid amount";
+          return;
+        }
+
+        if (amount > balance) {
+          errorEl.textContent = "Insufficient balance";
+          return;
+        }
+
+        const token = localStorage.getItem("token");
+        try {
+          submitWithdrawBtn.disabled = true;
+          submitWithdrawBtn.textContent = "Processing...";
+          const res = await fetch(`${API_BASE_URL}/host/withdrawals`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ amount })
+          });
+          const data = await res.json();
+          if (res.ok) {
+            successEl.textContent = "✅ Withdrawal request submitted!";
+            setTimeout(() => loadHostEarnings(), 1500);
+          } else {
+            errorEl.textContent = data.message || "Failed to submit request";
+            submitWithdrawBtn.disabled = false;
+            submitWithdrawBtn.textContent = "Confirm";
+          }
+        } catch (e) { 
+          errorEl.textContent = "Network error"; 
+          submitWithdrawBtn.disabled = false;
+          submitWithdrawBtn.textContent = "Confirm";
+        }
+      });
+    }
   }
 
   // ── Init ──

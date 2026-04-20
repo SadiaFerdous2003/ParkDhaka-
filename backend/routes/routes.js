@@ -36,6 +36,7 @@ const waitlistController = require("../controllers/waitlistController");
 const notificationController = require("../controllers/notificationController");
 const paymentController = require("../controllers/paymentController");
 const subscriptionController = require("../controllers/subscriptionController");
+const withdrawalController = require("../controllers/withdrawalController");
 
 const { authMiddleware, roleMiddleware } = require("../middleware/auth");
 
@@ -225,6 +226,47 @@ router.get(
   authMiddleware,
   roleMiddleware(["Driver"]),
   subscriptionController.getMySubscription
+);
+
+
+// ── Host Earnings & Withdrawals (FR-16) ──
+router.get(
+  "/host/earnings-stats",
+  authMiddleware,
+  roleMiddleware(["GarageHost"]),
+  withdrawalController.getEarningsStats
+);
+router.get(
+  "/host/banking",
+  authMiddleware,
+  roleMiddleware(["GarageHost"]),
+  withdrawalController.getBankingInfo
+);
+router.post(
+  "/host/banking",
+  authMiddleware,
+  roleMiddleware(["GarageHost"]),
+  withdrawalController.updateBankingInfo
+);
+router.get(
+  "/host/withdrawals",
+  authMiddleware,
+  roleMiddleware(["GarageHost"]),
+  withdrawalController.getHostWithdrawals
+);
+router.post(
+  "/host/withdrawals",
+  authMiddleware,
+  roleMiddleware(["GarageHost"]),
+  withdrawalController.requestWithdrawal
+);
+
+// Admin / Simulation
+router.put(
+  "/admin/withdrawals/:id/approve",
+  authMiddleware,
+  roleMiddleware(["Admin"]),
+  withdrawalController.adminApproveWithdrawal
 );
 
 

@@ -764,59 +764,153 @@ const ParkingView = (function () {
     containerEl.innerHTML = html;
   }
 
-  function renderHostPayments(payments, totalEarnings) {
-    let historyHtml = "<p class='no-bookings'>No earnings yet.</p>";
+  function renderHostEarnings(data, banking, withdrawals, payments) {
+    const { totalEarnings, earningsToday, earningsMonth, availableBalance } = data;
 
+    let historyHtml = "<p class='no-data'>No earnings records yet.</p>";
     if (payments && payments.length > 0) {
       historyHtml = `
-        <table class="spaces-table">
+        <table class="smart-table">
           <thead>
-            <tr>
-              <th>Date</th>
-              <th>Driver</th>
-              <th>Garage</th>
-              <th>Amount</th>
-              <th>Method</th>
-            </tr>
+            <tr><th>Date</th><th>Driver</th><th>Amount</th><th>Method</th></tr>
           </thead>
           <tbody>
-            ${payments.map(p => {
-              const date = new Date(p.timestamp).toLocaleDateString();
-              const driverName = p.user?.name || "Driver";
-              const garageName = p.garage?.location?.address || "Your Garage";
-              return `
-                <tr>
-                  <td>${date}</td>
-                  <td>${driverName}</td>
-                  <td>${garageName}</td>
-                  <td>৳${p.amount}</td>
-                  <td>${p.paymentMethod}</td>
-                </tr>
-              `;
-            }).join("")}
+            ${payments.map(p => `
+              <tr>
+                <td>${new Date(p.timestamp).toLocaleDateString()}</td>
+                <td>${p.user?.name || "Driver"}</td>
+                <td>৳${p.amount}</td>
+                <td><span class="badge-lite">${p.paymentMethod}</span></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+    }
+
+    let withdrawalsHtml = "<p class='no-data'>No withdrawals yet.</p>";
+    if (withdrawals && withdrawals.length > 0) {
+      withdrawalsHtml = `
+        <table class="smart-table">
+          <thead>
+            <tr><th>Date</th><th>Amount</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            ${withdrawals.map(w => `
+              <tr>
+                <td>${new Date(w.requestDate).toLocaleDateString()}</td>
+                <td>৳${w.amount}</td>
+                <td><span class="status-pill status-${w.status}">${w.status}</span></td>
+              </tr>
+            `).join("")}
           </tbody>
         </table>
       `;
     }
 
     const html = `
-      <div class="dashboard">
+      <div class="dashboard host-financials-smart">
         <header class="dashboard-header">
-          <h1>💰 Earnings Summary</h1>
+          <h1>💰 Financial Overview</h1>
           <div class="header-actions">
             <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
-        <div class="dashboard-content" style="margin-bottom: 20px;">
-           <div class="card" style="background: #e8f5e9; border: 1px solid #c8e6c9;">
-            <h3>Total Lifetime Earnings</h3>
-            <p class="stat" style="color: #2e7d32;">৳${totalEarnings}</p>
+
+        <div class="financial-top-grid">
+          <!-- Balance & Stats Column -->
+          <div class="financial-left">
+            <div class="card balance-card-smart">
+              <h3>Available Balance</h3>
+              <div class="balance-display">
+                <span class="currency">৳</span>
+                <span class="amount">${availableBalance}</span>
+              </div>
+              <button id="show-withdraw-form-btn" class="btn btn-primary btn-block" ${availableBalance > 0 ? '' : 'disabled'}>
+                Request Withdrawal
+              </button>
+              
+              <div id="withdraw-form-container" class="inline-form" style="display: none;">
+                <div class="form-group">
+                  <input type="number" id="withdraw-amount" min="1" max="${availableBalance}" placeholder="Enter amount (৳)" />
+                </div>
+                <div class="form-actions-row">
+                  <button id="submit-withdraw-btn" class="btn btn-success btn-small">Confirm</button>
+                  <button id="close-withdraw-btn" class="btn btn-ghost btn-small">Cancel</button>
+                </div>
+                <div id="withdraw-error" class="error-message"></div>
+                <div id="withdraw-success" class="success-message"></div>
+              </div>
+            </div>
+
+            <div class="mini-stats-row">
+              <div class="mini-stat-card">
+                <span>Today</span>
+                <strong>৳${earningsToday}</strong>
+              </div>
+              <div class="mini-stat-card">
+                <span>This Month</span>
+                <strong>৳${earningsMonth}</strong>
+              </div>
+              <div class="mini-stat-card">
+                <span>Lifetime</span>
+                <strong>৳${totalEarnings}</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- Banking Info Column -->
+          <div class="financial-right">
+            <div class="card banking-card-smart">
+              <div class="card-header-flex">
+                <h3>🏦 Payout Account</h3>
+                <button id="edit-banking-btn" class="btn-icon-link" style="${banking.accountNumber ? '' : 'display:none'}">Edit</button>
+              </div>
+
+              <div id="banking-display" style="${banking.accountNumber ? '' : 'display:none'}">
+                <div class="readonly-info">
+                  <p><strong>Method:</strong> ${banking.accountType}</p>
+                  <p><strong>Account:</strong> ${banking.accountNumber}</p>
+                  <p><strong>Name:</strong> ${banking.accountName}</p>
+                </div>
+              </div>
+
+              <div id="banking-form" class="smart-form" style="${banking.accountNumber ? 'display:none' : ''}">
+                <div class="form-group">
+                  <label>Service</label>
+                  <select id="bank-type">
+                    <option value="bKash" ${banking.accountType === 'bKash' ? 'selected' : ''}>bKash</option>
+                    <option value="Nagad" ${banking.accountType === 'Nagad' ? 'selected' : ''}>Nagad</option>
+                    <option value="Rocket" ${banking.accountType === 'Rocket' ? 'selected' : ''}>Rocket</option>
+                    <option value="Bank" ${banking.accountType === 'Bank' ? 'selected' : ''}>Bank Account</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <input type="text" id="bank-number" value="${banking.accountNumber || ''}" placeholder="Account Number" />
+                </div>
+                <div class="form-group">
+                  <input type="text" id="bank-name" value="${banking.accountName || ''}" placeholder="Account Holder Name" />
+                </div>
+                <div class="form-actions-row">
+                  <button id="save-banking-btn" class="btn btn-primary btn-small">Save</button>
+                  ${banking.accountNumber ? '<button id="cancel-banking-btn" class="btn btn-ghost btn-small">Cancel</button>' : ''}
+                </div>
+                <div id="banking-error" class="error-message"></div>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="history-container card" style="padding: 20px;">
-          <h2>Recent Transactions</h2>
-          ${historyHtml}
+
+        <div class="financial-history-grid">
+           <div class="card history-section">
+            <h3>🕒 Recent Withdrawals</h3>
+            <div class="table-container">${withdrawalsHtml}</div>
+          </div>
+          <div class="card history-section">
+            <h3>📈 Payment History</h3>
+            <div class="table-container">${historyHtml}</div>
+          </div>
         </div>
       </div>
     `;
@@ -838,7 +932,7 @@ const ParkingView = (function () {
     renderPaymentModal,
     renderReceiptModal,
     renderPaymentHistory,
-    renderHostPayments,
+    renderHostEarnings,
     showError
   };
 })();

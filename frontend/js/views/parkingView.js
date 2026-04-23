@@ -77,6 +77,7 @@ const ParkingView = (function () {
             <button id="monthly-passes-btn" class="btn btn-primary">Monthly Passes</button>
             <button id="view-garages-btn" class="btn btn-primary">View Garages</button>
             <button id="my-bookings-btn" class="btn btn-primary">My Bookings</button>
+            <button id="my-ratings-btn" class="btn btn-primary">⭐ My Ratings</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
@@ -95,6 +96,7 @@ const ParkingView = (function () {
             <p class="stat">${data.data.upcomingReservations}</p>
           </div>
         </div>
+        <div id="panic-container"></div>
       </div>
     `;
     containerEl.innerHTML = html;
@@ -113,7 +115,7 @@ const ParkingView = (function () {
             const hours = s.availableHours ? `${s.availableHours.start} - ${s.availableHours.end}` : "";
             const isChecked = s.status === "Open" ? "checked" : "";
             const statusClass = `status-${s.status}`;
-            
+
             return `<tr data-id="${s._id}">
               <td>${imgs}</td>
               <td>৳${s.price}</td>
@@ -133,12 +135,12 @@ const ParkingView = (function () {
         </table>`;
     }
 
-
     const html = `
       <div class="dashboard">
         <header class="dashboard-header">
           <h1>🏢 Garage Host Dashboard</h1>
           <div class="header-actions">
+            <button id="my-ratings-btn" class="btn btn-primary">⭐ My Ratings</button>
             <button id="view-garages-btn" class="btn btn-primary">View Garages</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
@@ -231,11 +233,26 @@ const ParkingView = (function () {
       </div>
     `;
 
-
     containerEl.innerHTML = html;
   }
 
-  function renderAdminDashboard(data) {
+  function renderAdminDashboard(data, panicLogs = []) {
+    let panicLogsHtml = "<p>No panic logs found.</p>";
+    if (panicLogs.length > 0) {
+      panicLogsHtml = `<table class="spaces-table">
+        <thead><tr><th>Time</th><th>User</th><th>Location</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>${panicLogs.map(log => `
+          <tr>
+            <td>${new Date(log.createdAt).toLocaleString()}</td>
+            <td>${log.user?.name || "Unknown"} <br><small>${log.user?.email || ""}</small><br><small>Contact: ${log.user?.trustedContact?.phone || "None"}</small></td>
+            <td>Lat: ${log.location?.lat}, Lng: ${log.location?.lng}</td>
+            <td><span class="status-label status-${log.status === 'Active' ? 'Closed' : 'Open'}">${log.status}</span></td>
+            <td>${log.status === 'Active' ? `<button class="btn-resolve-panic" data-id="${log._id}">Resolve</button>` : `Resolved: ${log.resolutionNotes || ''}`}</td>
+          </tr>
+        `).join("")}</tbody>
+      </table>`;
+    }
+
     const html = `
       <div class="dashboard">
         <header class="dashboard-header">
@@ -259,6 +276,12 @@ const ParkingView = (function () {
             <p class="stat">${data.data.totalTransactions}</p>
           </div>
         </div>
+        <section class="host-spaces" style="margin-top: 20px;">
+          <h2>🚨 Active Panic Alerts & Logs</h2>
+          <div id="panic-logs-list">
+            ${panicLogsHtml}
+          </div>
+        </section>
       </div>
     `;
     containerEl.innerHTML = html;
@@ -295,14 +318,12 @@ const ParkingView = (function () {
               ? `${s.location.lat}, ${s.location.lng}`
               : "No coordinates";
 
-            // Book Now button only for drivers
             const bookBtn = userRole === "Driver"
               ? `<button class="btn-book-now" data-space-id="${s._id}" data-price="${s.price}">📅 Book Now</button>`
               : "";
 
-            // View on Map button with Google Maps navigation (FR-6)
             const hasCoords = s.location && s.location.lat && s.location.lng;
-            const mapLink = hasCoords 
+            const mapLink = hasCoords
               ? `https://www.google.com/maps/dir/?api=1&destination=${s.location.lat},${s.location.lng}`
               : `#`;
             const viewOnMapBtn = hasCoords
@@ -393,7 +414,6 @@ const ParkingView = (function () {
   function filterAndRenderGarages(vehicleType, minPrice, maxPrice, userRole) {
     let filtered = allSpaces;
 
-    // Filter by vehicle type (case-insensitive, trim whitespace)
     if (vehicleType) {
       const searchType = vehicleType.toLowerCase().trim();
       filtered = filtered.filter(s => {
@@ -402,7 +422,6 @@ const ParkingView = (function () {
       });
     }
 
-    // Filter by price range
     if (minPrice !== null && minPrice !== undefined && minPrice !== '') {
       filtered = filtered.filter(s => s.price >= parseFloat(minPrice));
     }
@@ -413,7 +432,6 @@ const ParkingView = (function () {
 
     renderGarageListing(filtered, userRole);
 
-    // Re-initialize map after re-render
     setTimeout(() => {
       if (typeof initGaragesMap === 'function') {
         initGaragesMap(filtered, userRole);
@@ -475,7 +493,6 @@ const ParkingView = (function () {
         const dateStr = new Date(b.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
         const statusClass = `status-${b.status}`;
 
-        // Determine if within 1hr (disable cancel/reschedule)
         const bookingStart = new Date(b.date);
         const [bh, bm] = b.startTime.split(":").map(Number);
         bookingStart.setHours(bh, bm, 0, 0);
@@ -583,7 +600,7 @@ const ParkingView = (function () {
 
   function renderSubscriptionPasses(data) {
     const { hasSubscription, subscription } = data;
-    
+
     let passHtml = `
       <div class="card" style="text-align: center; padding: 40px; margin: 0 auto; width: 100%; max-width: 500px;">
         <h2>💳 Monthly Parking Pass</h2>
@@ -625,6 +642,183 @@ const ParkingView = (function () {
     containerEl.innerHTML = html;
   }
 
+  // ── FR-21: Rating Modal ──
+  function renderRatingModal(booking, userRole) {
+    const target = userRole === "Driver"
+      ? `৳${booking.garageSpace?.price}/hr garage`
+      : booking.driver?.name || "Driver";
+
+    const existing = document.getElementById("rating-modal-overlay");
+    if (existing) existing.remove();
+
+    const html = `
+      <div class="booking-modal-overlay" id="rating-modal-overlay">
+        <div class="booking-modal">
+          <button class="modal-close" id="rating-modal-close">&times;</button>
+          <h2>⭐ Leave a Review</h2>
+          <p style="color:#555; margin-bottom:1rem;">Rate your experience with: <strong>${target}</strong></p>
+
+          <div class="form-group">
+            <label>Rating</label>
+            <div class="star-selector" id="star-selector">
+              ${[1, 2, 3, 4, 5].map(i => `
+                <span class="star" data-value="${i}" style="font-size:2rem; cursor:pointer; color:#ccc;">★</span>
+              `).join("")}
+            </div>
+            <input type="hidden" id="rating-value" value="0" />
+          </div>
+          <div class="form-group">
+            <label>Review (optional)</label>
+            <textarea id="rating-review" rows="3" style="width:100%; padding:0.75rem; border:1px solid #ddd; border-radius:4px; font-size:1rem; resize:vertical;" placeholder="Share your experience..."></textarea>
+          </div>
+
+          <div id="rating-error" class="error-message" style="display:none;"></div>
+          <div id="rating-success" class="success-message" style="display:none;"></div>
+
+          <button id="submit-rating-btn" class="btn btn-primary" data-booking-id="${booking._id}">Submit Rating</button>
+        </div>
+      </div>
+    `;
+    containerEl.insertAdjacentHTML("beforeend", html);
+  }
+
+  // ── FR-21: My Ratings Page ──
+  function renderMyRatings(pendingBookings, userRole) {
+    let html = "";
+    if (!pendingBookings || pendingBookings.length === 0) {
+      html = "<p class='no-bookings'>No completed bookings to rate yet.</p>";
+    } else {
+      html = `<div class="bookings-list">
+        ${pendingBookings.map(b => {
+        const dateStr = new Date(b.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+        const target = userRole === "Driver"
+          ? `৳${b.garageSpace?.price}/hr garage`
+          : b.driver?.name || "Driver";
+        return `
+            <div class="booking-card">
+              <div class="booking-card-header">
+                <span class="booking-date">${dateStr}</span>
+                <span class="booking-status status-completed">COMPLETED</span>
+              </div>
+              <div class="booking-card-body">
+                <p><strong>Time:</strong> ${b.startTime} — ${b.endTime}</p>
+                <p><strong>Total:</strong> ৳${b.totalPrice}</p>
+                <p><strong>Rate:</strong> ${target}</p>
+              </div>
+              <div class="booking-card-actions">
+                <button class="btn-rate-booking btn btn-primary" data-booking-id="${b._id}" style="width:auto; padding:0.5rem 1rem;">⭐ Rate</button>
+              </div>
+            </div>
+          `;
+      }).join("")}
+      </div>`;
+    }
+
+    containerEl.innerHTML = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>⭐ Rate Your Experiences</h1>
+          <div class="header-actions">
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
+          </div>
+        </header>
+        <div class="bookings-container">${html}</div>
+      </div>
+    `;
+  }
+
+  // ── FR-22: Panic Section ──
+  function renderPanicSection(trustedContact) {
+    const hasTrusted = trustedContact && trustedContact.email;
+    return `
+      <div class="panic-section" id="panic-section" style="margin: 1.5rem 2rem; padding: 1.5rem; background: #fff5f5; border: 2px solid #e74c3c; border-radius: 8px;">
+        <div style="margin-bottom: 1rem;">
+          <h3 style="color: #e74c3c; margin-bottom: 0.25rem;">🚨 Emergency Panic Button</h3>
+          <p style="color: #555; font-size: 0.9rem;">Press in case of emergency. Your location will be shared with your trusted contact.</p>
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+          ${hasTrusted
+        ? `<p style="color:#28a745;">✅ Trusted contact: <strong>${trustedContact.name}</strong> (${trustedContact.email})</p>`
+        : `<p style="color:#e74c3c;">⚠️ No trusted contact set. Add one below before using the panic button.</p>`
+      }
+        </div>
+
+        <button id="panic-btn" style="background:#e74c3c; color:white; border:none; padding:1rem 2rem; font-size:1.2rem; font-weight:bold; border-radius:8px; cursor:pointer; width:100%;" ${hasTrusted ? '' : 'disabled'}>
+          🚨 PANIC
+        </button>
+        <div id="panic-status" style="margin-top:0.75rem; font-weight:bold;"></div>
+
+        <details style="margin-top:1.5rem;">
+          <summary style="cursor:pointer; color:#3498db; font-weight:500;">⚙️ Set Trusted Contact</summary>
+          <div style="margin-top:1rem;">
+            <div class="form-group">
+              <label>Contact Name</label>
+              <input type="text" id="tc-name" value="${trustedContact?.name || ''}" placeholder="e.g. Mom" />
+            </div>
+            <div class="form-group">
+              <label>Contact Email</label>
+              <input type="email" id="tc-email" value="${trustedContact?.email || ''}" placeholder="trusted@example.com" />
+            </div>
+            <div class="form-group">
+              <label>Contact Phone</label>
+              <input type="text" id="tc-phone" value="${trustedContact?.phone || ''}" placeholder="+880..." />
+            </div>
+            <button id="save-trusted-contact-btn" class="btn btn-primary" style="width:auto; padding:0.5rem 1.5rem;">Save Contact</button>
+            <div id="tc-status" style="margin-top:0.5rem; font-size:0.9rem;"></div>
+          </div>
+        </details>
+      </div>
+    `;
+  }
+
+  // ── FR-22: Admin Panic Logs Page ──
+  function renderPanicLogs(logs) {
+    let logsHtml = "<p class='no-bookings'>No panic alerts logged.</p>";
+    if (logs && logs.length > 0) {
+      logsHtml = `<div class="bookings-list">
+        ${logs.map(l => {
+        const dateStr = new Date(l.createdAt).toLocaleString();
+        const mapsLink = l.location?.lat
+          ? `https://www.google.com/maps?q=${l.location.lat},${l.location.lng}`
+          : null;
+        return `
+            <div class="booking-card" style="border-left: 4px solid ${l.status === 'active' ? '#e74c3c' : '#28a745'}">
+              <div class="booking-card-header">
+                <span class="booking-date">${dateStr}</span>
+                <span class="booking-status" style="background:${l.status === 'active' ? '#e74c3c' : '#28a745'}; color:white; padding:2px 8px; border-radius:4px;">${l.status.toUpperCase()}</span>
+              </div>
+              <div class="booking-card-body">
+                <p><strong>Driver:</strong> ${l.driver?.name || "Unknown"} (${l.driver?.email || ""})</p>
+                <p><strong>Contact Notified:</strong> ${l.trustedContactNotified ? "✅ Yes" : "❌ No"}</p>
+                ${mapsLink ? `<p><strong>Location:</strong> <a href="${mapsLink}" target="_blank">View on Maps</a></p>` : "<p><strong>Location:</strong> Not available</p>"}
+                ${l.notes ? `<p><strong>Notes:</strong> ${l.notes}</p>` : ""}
+              </div>
+              ${l.status === "active" ? `
+              <div class="booking-card-actions">
+                <button class="btn-resolve-panic btn btn-primary" data-id="${l._id}" style="width:auto; padding:0.5rem 1rem;">Mark Resolved</button>
+              </div>` : ""}
+            </div>
+          `;
+      }).join("")}
+      </div>`;
+    }
+
+    containerEl.innerHTML = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>🚨 Panic Alert Logs</h1>
+          <div class="header-actions">
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
+          </div>
+        </header>
+        <div class="bookings-container">${logsHtml}</div>
+      </div>
+    `;
+  }
+
   return {
     renderAuthPage,
     renderDriverDashboard,
@@ -637,7 +831,10 @@ const ParkingView = (function () {
     renderSubscriptionPasses,
     renderRescheduleModal,
     renderNotifications,
+    renderRatingModal,
+    renderMyRatings,
+    renderPanicSection,
+    renderPanicLogs,
     showError
   };
 })();
-

@@ -70,3 +70,21 @@ exports.login = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+exports.updateProfile = async (req, res) => {
+  try {
+    const { trustedContactName, trustedContactPhone } = req.body;
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.trustedContact = {
+      name: trustedContactName || (user.trustedContact ? user.trustedContact.name : ""),
+      phone: trustedContactPhone || (user.trustedContact ? user.trustedContact.phone : "")
+    };
+
+    await user.save();
+    res.json({ message: "Profile updated successfully", trustedContact: user.trustedContact });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

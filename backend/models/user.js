@@ -10,6 +10,10 @@ const userSchema = new mongoose.Schema({
     enum: ["Driver","GarageHost","Admin"],
     default: "Driver"
   },
+  trustedContact: {
+    name: { type: String },
+    phone: { type: String }
+  },
   createdAt: { type: Date, default: Date.now }
 });
 

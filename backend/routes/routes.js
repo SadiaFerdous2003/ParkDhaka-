@@ -36,12 +36,15 @@ const waitlistController = require("../controllers/waitlistController");
 const notificationController = require("../controllers/notificationController");
 const paymentController = require("../controllers/paymentController");
 const subscriptionController = require("../controllers/subscriptionController");
+const ratingController = require("../controllers/ratingController");
+const panicController = require("../controllers/panicController");
 
 const { authMiddleware, roleMiddleware } = require("../middleware/auth");
 
 // auth
 router.post("/register", authController.register);
 router.post("/login", authController.login);
+router.put("/profile", authMiddleware, authController.updateProfile);
 
 // existing parking endpoints
 router.get("/parkings", parkingController.getParkings);
@@ -198,6 +201,31 @@ router.get(
   authMiddleware,
   roleMiddleware(["Driver"]),
   subscriptionController.getMySubscription
+);
+
+// ── Ratings (FR-21) ──
+router.post("/ratings", authMiddleware, ratingController.submitRating);
+router.get("/garage-spaces/:garageId/ratings", authMiddleware, ratingController.getGarageRatings);
+router.get("/users/:userId/ratings", authMiddleware, ratingController.getUserRatings);
+
+// ── Panic System (FR-22) ──
+router.post(
+  "/panic",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  panicController.triggerPanic
+);
+router.get(
+  "/panic",
+  authMiddleware,
+  roleMiddleware(["Admin"]),
+  panicController.getPanicLogs
+);
+router.put(
+  "/panic/:id/resolve",
+  authMiddleware,
+  roleMiddleware(["Admin"]),
+  panicController.resolvePanic
 );
 
 

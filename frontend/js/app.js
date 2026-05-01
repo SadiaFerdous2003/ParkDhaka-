@@ -238,7 +238,7 @@ const App = (function () {
         }
 
         setupLogoutButton();
-        setupViewGaragesButton();
+        setupBackToDashboardListener();
         setupMyBookingsButton();
         setupMonthlyPassesButton();
         setupRatingsButton();
@@ -260,7 +260,7 @@ const App = (function () {
     if (logoutBtn) logoutBtn.addEventListener("click", logout);
   }
 
-  function setupViewGaragesButton() {
+  function setupBackToDashboardListener() {
     const viewGaragesBtn = document.getElementById("view-garages-btn");
     if (viewGaragesBtn) viewGaragesBtn.addEventListener("click", loadGarageListing);
 
@@ -303,7 +303,7 @@ const App = (function () {
       if (response.ok) {
         const data = await response.json();
         parkingView.renderSubscriptionPasses(data);
-        attachDriverBackBtn();
+        setupBackToDashboardListener();
         const purchaseBtn = document.getElementById("purchase-pass-btn");
         if (purchaseBtn) purchaseBtn.addEventListener("click", handlePurchasePass);
       } else if (response.status === 401) {
@@ -371,9 +371,9 @@ const App = (function () {
         const spaces = await response.json();
         parkingView.renderGarageListing(spaces, currentUser?.role);
         if (currentUser?.role === "Driver") {
-          attachDriverBackBtn();
+          setupBackToDashboardListener();
         } else {
-          setupViewGaragesButton();
+          setupBackToDashboardListener();
         }
         setupLogoutButton();
         setupBookNowButtons();
@@ -406,6 +406,8 @@ const App = (function () {
       const minPrice = minPriceInput?.value || "";
       const maxPrice = maxPriceInput?.value || "";
       parkingView.filterAndRenderGarages(vehicleType, minPrice, maxPrice, currentUser?.role);
+      if (currentUser?.role === "Driver") attachDriverBackBtn();
+      else if (currentUser?.role === "Admin") attachAdminBackBtn();
       setTimeout(() => setupFilterBar(spaces), 150);
     });
 
@@ -414,6 +416,8 @@ const App = (function () {
       if (minPriceInput) minPriceInput.value = "";
       if (maxPriceInput) maxPriceInput.value = "";
       parkingView.renderGarageListing(spaces, currentUser?.role);
+      if (currentUser?.role === "Driver") attachDriverBackBtn();
+      else if (currentUser?.role === "Admin") attachAdminBackBtn();
       setTimeout(() => setupFilterBar(spaces), 150);
     });
   }
@@ -950,7 +954,7 @@ const App = (function () {
         const bookings = await res.json();
         currentBookings = bookings;
         parkingView.renderMyBookings(bookings);
-        attachDriverBackBtn();
+        setupBackToDashboardListener();
         setupBookingActions();
       }
     } catch (err) { console.error("Error loading bookings:", err); }
@@ -1050,7 +1054,7 @@ const App = (function () {
       if (res.ok) {
         const pending = await res.json();
         parkingView.renderMyRatings(pending, currentUser.role);
-        attachDriverBackBtn();
+        setupBackToDashboardListener();
         setupRateButtons();
       }
     } catch (err) { console.error(err); }
@@ -1219,8 +1223,7 @@ const App = (function () {
         const logs = await res.json();
         parkingView.renderPanicLogs(logs);
         setupLogoutButton();
-        const backBtn = document.getElementById("back-to-dashboard-btn");
-        if (backBtn) backBtn.addEventListener("click", () => loadDashboard(currentUser.role));
+        setupBackToDashboardListener();
         setupResolvePanicButtons();
       }
     } catch (err) { console.error(err); }
@@ -1261,12 +1264,6 @@ const App = (function () {
     }
   }
 
-  function attachDriverBackBtn() {
-    const backBtn = document.getElementById("back-to-driver-hub-btn");
-    if (backBtn) backBtn.addEventListener("click", () => loadDashboard("Driver"));
-    setupLogoutButton();
-  }
-
   // ── Admin Dashboard Functions ──
   function setupAdminDashboardListeners() {
     const map = {
@@ -1285,12 +1282,6 @@ const App = (function () {
     }
   }
 
-  function attachAdminBackBtn() {
-    const backBtn = document.getElementById("back-to-admin-hub-btn");
-    if (backBtn) backBtn.addEventListener("click", () => loadDashboard("Admin"));
-    setupLogoutButton();
-  }
-
   async function loadAdminGarageApprovals() {
     const token = localStorage.getItem("token");
     try {
@@ -1298,7 +1289,7 @@ const App = (function () {
       if (res.ok) {
         const garages = await res.json();
         parkingView.renderAdminGarageApprovals(garages);
-        attachAdminBackBtn();
+        setupBackToDashboardListener();
         document.querySelectorAll(".btn-approve-garage").forEach(btn => btn.addEventListener("click", () => handleUpdateGarageStatus(btn.dataset.id, "Approved")));
         document.querySelectorAll(".btn-reject-garage").forEach(btn => btn.addEventListener("click", () => handleUpdateGarageStatus(btn.dataset.id, "Rejected")));
       }
@@ -1324,7 +1315,7 @@ const App = (function () {
       if (res.ok) {
         const users = await res.json();
         parkingView.renderAdminUsers(users);
-        attachAdminBackBtn();
+        setupBackToDashboardListener();
         document.querySelectorAll(".btn-toggle-ban").forEach(btn => btn.addEventListener("click", () => handleToggleBan(btn.dataset.id)));
       }
     } catch (e) { console.error(e); }
@@ -1345,7 +1336,7 @@ const App = (function () {
       if (res.ok) {
         const bookings = await res.json();
         parkingView.renderAdminBookings(bookings);
-        attachAdminBackBtn();
+        setupBackToDashboardListener();
       }
     } catch (e) { console.error(e); }
   }
@@ -1357,7 +1348,7 @@ const App = (function () {
       if (res.ok) {
         const data = await res.json();
         parkingView.renderAdminRevenue(data);
-        attachAdminBackBtn();
+        setupBackToDashboardListener();
       }
     } catch (e) { console.error(e); }
   }
@@ -1369,7 +1360,7 @@ const App = (function () {
       if (res.ok) {
         const data = await res.json();
         parkingView.renderAdminRatings(data);
-        attachAdminBackBtn();
+        setupBackToDashboardListener();
       }
     } catch (e) { console.error(e); }
   }
@@ -1381,7 +1372,7 @@ const App = (function () {
       if (res.ok) {
         const complaints = await res.json();
         parkingView.renderAdminComplaints(complaints);
-        attachAdminBackBtn();
+        setupBackToDashboardListener();
         document.querySelectorAll(".btn-resolve-complaint").forEach(btn => btn.addEventListener("click", async () => {
           const resolutionNotes = prompt("Enter resolution notes:");
           if (resolutionNotes) {
@@ -1404,7 +1395,7 @@ const App = (function () {
       if (res.ok) {
         const data = await res.json();
         parkingView.renderAdminPerformance(data);
-        attachAdminBackBtn();
+        setupBackToDashboardListener();
       }
     } catch (e) { console.error(e); }
   }

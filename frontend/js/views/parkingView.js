@@ -368,7 +368,7 @@ const ParkingView = (function () {
         <header class="dashboard-header">
           <h1>🏢 Garage Approvals</h1>
           <div class="header-actions">
-            <button id="back-to-admin-hub-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
@@ -401,7 +401,7 @@ const ParkingView = (function () {
         <header class="dashboard-header">
           <h1>👥 User Management</h1>
           <div class="header-actions">
-            <button id="back-to-admin-hub-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
@@ -433,7 +433,7 @@ const ParkingView = (function () {
         <header class="dashboard-header">
           <h1>📋 Booking Monitoring</h1>
           <div class="header-actions">
-            <button id="back-to-admin-hub-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
@@ -457,7 +457,7 @@ const ParkingView = (function () {
         <header class="dashboard-header">
           <h1>💰 Revenue Analytics</h1>
           <div class="header-actions">
-            <button id="back-to-admin-hub-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
@@ -481,7 +481,7 @@ const ParkingView = (function () {
         <header class="dashboard-header">
           <h1>⭐ Aggregated Ratings</h1>
           <div class="header-actions">
-            <button id="back-to-admin-hub-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
@@ -522,7 +522,7 @@ const ParkingView = (function () {
         <header class="dashboard-header">
           <h1>⚖️ Complaints & Disputes</h1>
           <div class="header-actions">
-            <button id="back-to-admin-hub-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
@@ -542,7 +542,7 @@ const ParkingView = (function () {
         <header class="dashboard-header">
           <h1>⚙️ System Performance</h1>
           <div class="header-actions">
-            <button id="back-to-admin-hub-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
@@ -637,7 +637,7 @@ const ParkingView = (function () {
         <header class="dashboard-header">
           <h1>🅿️ All Listed Garages</h1>
           <div class="header-actions">
-            <button id="back-to-driver-hub-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
@@ -811,7 +811,7 @@ const ParkingView = (function () {
         <header class="dashboard-header">
           <h1>📋 My Bookings</h1>
           <div class="header-actions">
-            <button id="back-to-driver-hub-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
@@ -912,7 +912,7 @@ const ParkingView = (function () {
         <header class="dashboard-header">
           <h1>🎟️ Subscription Passes</h1>
           <div class="header-actions">
-            <button id="back-to-driver-hub-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
@@ -1001,7 +1001,7 @@ const ParkingView = (function () {
         <header class="dashboard-header">
           <h1>⭐ Rate Your Experiences</h1>
           <div class="header-actions">
-            <button id="back-to-driver-hub-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
@@ -1018,7 +1018,7 @@ const ParkingView = (function () {
         <header class="dashboard-header">
           <h1>🚨 Emergency Panic</h1>
           <div class="header-actions">
-            <button id="back-to-driver-hub-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>

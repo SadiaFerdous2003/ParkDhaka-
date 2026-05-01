@@ -141,7 +141,9 @@ exports.deleteGarageSpace = async (req, res) => {
 // Get all garage spaces (for viewing all listed garages) - Only return "Open" ones for Drivers
 exports.getAllGarageSpaces = async (req, res) => {
   try {
-    const query = req.user && req.user.role === "Driver" ? { status: "Open" } : {};
+    const query = req.user && req.user.role === "Driver" 
+      ? { status: "Open", approvalStatus: { $nin: ["Pending", "Rejected"] } } 
+      : {};
     const spaces = await GarageSpace.find(query)
       .populate('host', 'name email')
       .sort({ createdAt: -1 });

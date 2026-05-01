@@ -213,14 +213,12 @@ const App = (function () {
             currentSpaces = spaces;
             setupGarageHostListeners();
             loadNotifications();
-            setTimeout(() => { if (typeof initLocationPicker === 'function') initLocationPicker(); }, 100);
           } catch (err) {
             console.error("Error loading garage spaces", err);
             currentSpaces = [];
             parkingView.renderGarageHostDashboard(data, []);
             setupGarageHostListeners();
             loadNotifications();
-            setTimeout(() => { if (typeof initLocationPicker === 'function') initLocationPicker(); }, 100);
           }
         } else if (role === "Driver") {
           let waitlistEntries = [];
@@ -232,18 +230,11 @@ const App = (function () {
             if (wRes.ok) waitlistEntries = await wRes.json();
           } catch (e) { /* ignore */ }
           parkingView.renderDriverDashboard(data, waitlistEntries);
-          // Load panic section after dashboard renders
-          loadPanicSection();
+          setupDriverDashboardListeners();
+          setupWaitlistActions();
         } else if (role === "Admin") {
-          let panicLogs = [];
-          try {
-            const pRes = await fetch(`${API_BASE_URL}/panic`, {
-              method: "GET",
-              headers: { "Authorization": `Bearer ${token}` }
-            });
-            if (pRes.ok) panicLogs = await pRes.json();
-          } catch (e) { console.error(e); }
-          parkingView.renderAdminDashboard(data, panicLogs);
+          parkingView.renderAdminDashboard(data);
+          setupAdminDashboardListeners();
         }
 
         setupLogoutButton();
@@ -312,9 +303,7 @@ const App = (function () {
       if (response.ok) {
         const data = await response.json();
         parkingView.renderSubscriptionPasses(data);
-        setupLogoutButton();
-        const backBtn = document.getElementById("back-to-dashboard-btn");
-        if (backBtn) backBtn.addEventListener("click", () => loadDashboard(currentUser.role));
+        attachDriverBackBtn();
         const purchaseBtn = document.getElementById("purchase-pass-btn");
         if (purchaseBtn) purchaseBtn.addEventListener("click", handlePurchasePass);
       } else if (response.status === 401) {
@@ -381,7 +370,11 @@ const App = (function () {
       if (response.ok) {
         const spaces = await response.json();
         parkingView.renderGarageListing(spaces, currentUser?.role);
-        setupViewGaragesButton();
+        if (currentUser?.role === "Driver") {
+          attachDriverBackBtn();
+        } else {
+          setupViewGaragesButton();
+        }
         setupLogoutButton();
         setupBookNowButtons();
         setupFilterBar(spaces);
@@ -654,9 +647,21 @@ const App = (function () {
   }
 
   // ── Garage Host Helpers ──
-  function setupGarageHostListeners() {
+  function loadAddGarageSpaceForm() {
+    parkingView.renderAddGarageSpaceForm();
     const addBtn = document.getElementById("add-space-btn");
     if (addBtn) addBtn.addEventListener("click", handleAddSpace);
+    
+    const backBtn = document.getElementById("back-to-dashboard-btn");
+    if (backBtn) backBtn.addEventListener("click", () => loadDashboard(currentUser.role));
+    
+    setupLogoutButton();
+    setTimeout(() => { if (typeof initLocationPicker === 'function') initLocationPicker(); }, 100);
+  }
+
+  function setupGarageHostListeners() {
+    const listNewBtn = document.getElementById("list-new-garage-btn");
+    if (listNewBtn) listNewBtn.addEventListener("click", loadAddGarageSpaceForm);
 
     function hostSpacesClickHandler(e) {
       const target = e.target;
@@ -945,8 +950,7 @@ const App = (function () {
         const bookings = await res.json();
         currentBookings = bookings;
         parkingView.renderMyBookings(bookings);
-        setupLogoutButton();
-        setupViewGaragesButton();
+        attachDriverBackBtn();
         setupBookingActions();
       }
     } catch (err) { console.error("Error loading bookings:", err); }
@@ -1046,9 +1050,7 @@ const App = (function () {
       if (res.ok) {
         const pending = await res.json();
         parkingView.renderMyRatings(pending, currentUser.role);
-        setupLogoutButton();
-        const backBtn = document.getElementById("back-to-dashboard-btn");
-        if (backBtn) backBtn.addEventListener("click", () => loadDashboard(currentUser.role));
+        attachDriverBackBtn();
         setupRateButtons();
       }
     } catch (err) { console.error(err); }
@@ -1134,11 +1136,9 @@ const App = (function () {
         headers: { "Authorization": `Bearer ${token}` }
       });
       const contact = res.ok ? await res.json() : {};
-      const panicContainer = document.getElementById("panic-container");
-      if (panicContainer) {
-        panicContainer.innerHTML = parkingView.renderPanicSection(contact);
-        setupPanicListeners();
-      }
+      parkingView.renderPanicSection(contact);
+      attachDriverBackBtn();
+      setupPanicListeners();
     } catch (err) { console.error(err); }
   }
 
@@ -1243,6 +1243,170 @@ const App = (function () {
         } catch (err) { console.error(err); }
       });
     });
+  }
+
+  // ── Driver Dashboard Functions ──
+  function setupDriverDashboardListeners() {
+    const map = {
+      "nav-find-parking": loadGarageListing,
+      "nav-my-bookings": loadMyBookings,
+      "nav-monthly-passes": loadSubscriptionPasses,
+      "nav-my-ratings": loadMyRatings,
+      "nav-emergency-panic": loadPanicSection
+    };
+
+    for (const [id, handler] of Object.entries(map)) {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener("click", handler);
+    }
+  }
+
+  function attachDriverBackBtn() {
+    const backBtn = document.getElementById("back-to-driver-hub-btn");
+    if (backBtn) backBtn.addEventListener("click", () => loadDashboard("Driver"));
+    setupLogoutButton();
+  }
+
+  // ── Admin Dashboard Functions ──
+  function setupAdminDashboardListeners() {
+    const map = {
+      "nav-garage-approvals": loadAdminGarageApprovals,
+      "nav-user-management": loadAdminUsers,
+      "nav-booking-monitoring": loadAdminBookings,
+      "nav-revenue-analytics": loadAdminRevenue,
+      "nav-aggregated-ratings": loadAdminRatings,
+      "nav-complaints": loadAdminComplaints,
+      "nav-system-performance": loadAdminPerformance
+    };
+
+    for (const [id, handler] of Object.entries(map)) {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener("click", handler);
+    }
+  }
+
+  function attachAdminBackBtn() {
+    const backBtn = document.getElementById("back-to-admin-hub-btn");
+    if (backBtn) backBtn.addEventListener("click", () => loadDashboard("Admin"));
+    setupLogoutButton();
+  }
+
+  async function loadAdminGarageApprovals() {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/garages`, { headers: { "Authorization": `Bearer ${token}` } });
+      if (res.ok) {
+        const garages = await res.json();
+        parkingView.renderAdminGarageApprovals(garages);
+        attachAdminBackBtn();
+        document.querySelectorAll(".btn-approve-garage").forEach(btn => btn.addEventListener("click", () => handleUpdateGarageStatus(btn.dataset.id, "Approved")));
+        document.querySelectorAll(".btn-reject-garage").forEach(btn => btn.addEventListener("click", () => handleUpdateGarageStatus(btn.dataset.id, "Rejected")));
+      }
+    } catch (e) { console.error(e); }
+  }
+
+  async function handleUpdateGarageStatus(id, status) {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/garages/${id}/approve`, {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ approvalStatus: status })
+      });
+      if (res.ok) loadAdminGarageApprovals();
+    } catch (e) { console.error(e); }
+  }
+
+  async function loadAdminUsers() {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/users`, { headers: { "Authorization": `Bearer ${token}` } });
+      if (res.ok) {
+        const users = await res.json();
+        parkingView.renderAdminUsers(users);
+        attachAdminBackBtn();
+        document.querySelectorAll(".btn-toggle-ban").forEach(btn => btn.addEventListener("click", () => handleToggleBan(btn.dataset.id)));
+      }
+    } catch (e) { console.error(e); }
+  }
+
+  async function handleToggleBan(id) {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/users/${id}/ban`, { method: "PUT", headers: { "Authorization": `Bearer ${token}` } });
+      if (res.ok) loadAdminUsers();
+    } catch (e) { console.error(e); }
+  }
+
+  async function loadAdminBookings() {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/bookings`, { headers: { "Authorization": `Bearer ${token}` } });
+      if (res.ok) {
+        const bookings = await res.json();
+        parkingView.renderAdminBookings(bookings);
+        attachAdminBackBtn();
+      }
+    } catch (e) { console.error(e); }
+  }
+
+  async function loadAdminRevenue() {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/revenue`, { headers: { "Authorization": `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        parkingView.renderAdminRevenue(data);
+        attachAdminBackBtn();
+      }
+    } catch (e) { console.error(e); }
+  }
+
+  async function loadAdminRatings() {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/ratings`, { headers: { "Authorization": `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        parkingView.renderAdminRatings(data);
+        attachAdminBackBtn();
+      }
+    } catch (e) { console.error(e); }
+  }
+
+  async function loadAdminComplaints() {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/complaints`, { headers: { "Authorization": `Bearer ${token}` } });
+      if (res.ok) {
+        const complaints = await res.json();
+        parkingView.renderAdminComplaints(complaints);
+        attachAdminBackBtn();
+        document.querySelectorAll(".btn-resolve-complaint").forEach(btn => btn.addEventListener("click", async () => {
+          const resolutionNotes = prompt("Enter resolution notes:");
+          if (resolutionNotes) {
+            await fetch(`${API_BASE_URL}/admin/complaints/${btn.dataset.id}/resolve`, {
+              method: "PUT",
+              headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ resolutionNotes })
+            });
+            loadAdminComplaints();
+          }
+        }));
+      }
+    } catch (e) { console.error(e); }
+  }
+
+  async function loadAdminPerformance() {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/performance`, { headers: { "Authorization": `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        parkingView.renderAdminPerformance(data);
+        attachAdminBackBtn();
+      }
+    } catch (e) { console.error(e); }
   }
 
   // ── Init ──

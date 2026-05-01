@@ -4,7 +4,7 @@
   "private": true,
   "description": "ParkDhaka Frontend - Smart Parking Solution",
   "scripts": {
-    "dev": "npx http-server -p 8000",
+    "dev": "npx http-server -p 8000 -c-1",
     "build": "echo 'No build step required'"
   },
   "dependencies": {

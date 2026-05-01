@@ -74,29 +74,60 @@ const ParkingView = (function () {
         <header class="dashboard-header">
           <h1>🚗 Driver Dashboard</h1>
           <div class="header-actions">
-            <button id="monthly-passes-btn" class="btn btn-primary">Monthly Passes</button>
-            <button id="view-garages-btn" class="btn btn-primary">View Garages</button>
-            <button id="my-bookings-btn" class="btn btn-primary">My Bookings</button>
-            <button id="my-ratings-btn" class="btn btn-primary">⭐ My Ratings</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
         ${waitlistBanner}
-        <div class="dashboard-content">
+        
+        <div class="dashboard-content" style="margin-bottom: 30px;">
           <div class="card">
             <h3>Booked Spots</h3>
             <p class="stat">${data.data.bookedSpots}</p>
           </div>
           <div class="card">
             <h3>Total Spent</h3>
-            <p class="stat">${data.data.totalMoneySpent}</p>
+            <p class="stat">৳${data.data.totalMoneySpent}</p>
           </div>
           <div class="card">
             <h3>Upcoming Reservations</h3>
             <p class="stat">${data.data.upcomingReservations}</p>
           </div>
         </div>
-        <div id="panic-container"></div>
+
+        <h2 style="color: #102a43; margin-bottom: 20px; font-weight: 700;">Navigation Hub</h2>
+        <div class="dashboard-content" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; width: 100%;">
+          
+          <div class="card admin-nav-card" id="nav-find-parking" style="cursor: pointer; text-align: center;">
+            <h3 style="font-size: 2.5rem; margin-bottom: 10px;">🔍</h3>
+            <h3>Find Parking</h3>
+            <p>Search and view available garages.</p>
+          </div>
+
+          <div class="card admin-nav-card" id="nav-my-bookings" style="cursor: pointer; text-align: center;">
+            <h3 style="font-size: 2.5rem; margin-bottom: 10px;">📅</h3>
+            <h3>My Bookings</h3>
+            <p>Manage your active and past bookings.</p>
+          </div>
+          
+          <div class="card admin-nav-card" id="nav-monthly-passes" style="cursor: pointer; text-align: center;">
+            <h3 style="font-size: 2.5rem; margin-bottom: 10px;">🎟️</h3>
+            <h3>Monthly Passes</h3>
+            <p>Purchase and manage long-term passes.</p>
+          </div>
+
+          <div class="card admin-nav-card" id="nav-my-ratings" style="cursor: pointer; text-align: center;">
+            <h3 style="font-size: 2.5rem; margin-bottom: 10px;">⭐</h3>
+            <h3>My Ratings</h3>
+            <p>Review the garages you have visited.</p>
+          </div>
+
+          <div class="card admin-nav-card" id="nav-emergency-panic" style="cursor: pointer; text-align: center; border-bottom: 4px solid #f03a47;">
+            <h3 style="font-size: 2.5rem; margin-bottom: 10px;">🚨</h3>
+            <h3 style="color: #d82b38;">Emergency Panic</h3>
+            <p>Configure trusted contacts and trigger SOS.</p>
+          </div>
+
+        </div>
       </div>
     `;
     containerEl.innerHTML = html;
@@ -140,6 +171,7 @@ const ParkingView = (function () {
         <header class="dashboard-header">
           <h1>🏢 Garage Host Dashboard</h1>
           <div class="header-actions">
+            <button id="list-new-garage-btn" class="btn btn-primary">➕ List New Garage</button>
             <button id="my-ratings-btn" class="btn btn-primary">⭐ My Ratings</button>
             <button id="view-garages-btn" class="btn btn-primary">View Garages</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
@@ -173,8 +205,23 @@ const ParkingView = (function () {
             ${spacesHtml}
           </div>
         </section>
-        <section class="add-space-section">
-          <h2>Add New Space</h2>
+      </div>
+    `;
+
+    containerEl.innerHTML = html;
+  }
+
+  function renderAddGarageSpaceForm() {
+    const html = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>➕ List New Garage</h1>
+          <div class="header-actions">
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
+          </div>
+        </header>
+        <section class="add-space-section" style="max-width: 800px; margin: 2rem auto; background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
           <div class="form-group">
             <label>Upload Images (max 5)</label>
             <input type="file" id="space-images" accept="image/*" multiple />
@@ -236,55 +283,286 @@ const ParkingView = (function () {
     containerEl.innerHTML = html;
   }
 
-  function renderAdminDashboard(data, panicLogs = []) {
-    let panicLogsHtml = "<p>No panic logs found.</p>";
-    if (panicLogs.length > 0) {
-      panicLogsHtml = `<table class="spaces-table">
-        <thead><tr><th>Time</th><th>User</th><th>Location</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody>${panicLogs.map(log => `
-          <tr>
-            <td>${new Date(log.createdAt).toLocaleString()}</td>
-            <td>${log.user?.name || "Unknown"} <br><small>${log.user?.email || ""}</small><br><small>Contact: ${log.user?.trustedContact?.phone || "None"}</small></td>
-            <td>Lat: ${log.location?.lat}, Lng: ${log.location?.lng}</td>
-            <td><span class="status-label status-${log.status === 'Active' ? 'Closed' : 'Open'}">${log.status}</span></td>
-            <td>${log.status === 'Active' ? `<button class="btn-resolve-panic" data-id="${log._id}">Resolve</button>` : `Resolved: ${log.resolutionNotes || ''}`}</td>
-          </tr>
-        `).join("")}</tbody>
-      </table>`;
-    }
-
+  function renderAdminDashboard(data) {
     const html = `
       <div class="dashboard">
         <header class="dashboard-header">
-          <h1>👨‍💼 Admin Dashboard</h1>
+          <h1>👨‍💼 Admin Management Hub</h1>
           <div class="header-actions">
             <button id="view-garages-btn" class="btn btn-primary">View Garages</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
-        <div class="dashboard-content">
-          <div class="card">
-            <h3>Total Users</h3>
-            <p class="stat">${data.data.totalUsers}</p>
+        <div class="dashboard-content" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; width: 100%;">
+          
+          <div class="card admin-nav-card" id="nav-garage-approvals" style="cursor: pointer; text-align: center;">
+            <h3 style="font-size: 2rem; margin-bottom: 10px;">🏢</h3>
+            <h3>Garage Approvals</h3>
+            <p>Approve or reject new garage listings.</p>
           </div>
-          <div class="card">
-            <h3>Total Garages</h3>
-            <p class="stat">${data.data.totalGarages}</p>
+          
+          <div class="card admin-nav-card" id="nav-user-management" style="cursor: pointer; text-align: center;">
+            <h3 style="font-size: 2rem; margin-bottom: 10px;">👥</h3>
+            <h3>User Management</h3>
+            <p>Monitor and ban/unban users.</p>
           </div>
-          <div class="card">
-            <h3>Total Transactions</h3>
-            <p class="stat">${data.data.totalTransactions}</p>
+
+          <div class="card admin-nav-card" id="nav-booking-monitoring" style="cursor: pointer; text-align: center;">
+            <h3 style="font-size: 2rem; margin-bottom: 10px;">📋</h3>
+            <h3>Booking Monitoring</h3>
+            <p>View all platform bookings.</p>
           </div>
+
+          <div class="card admin-nav-card" id="nav-revenue-analytics" style="cursor: pointer; text-align: center;">
+            <h3 style="font-size: 2rem; margin-bottom: 10px;">💰</h3>
+            <h3>Revenue Analytics</h3>
+            <p>View revenue and financial data.</p>
+          </div>
+
+          <div class="card admin-nav-card" id="nav-aggregated-ratings" style="cursor: pointer; text-align: center;">
+            <h3 style="font-size: 2rem; margin-bottom: 10px;">⭐</h3>
+            <h3>Aggregated Ratings</h3>
+            <p>View overall platform ratings.</p>
+          </div>
+
+          <div class="card admin-nav-card" id="nav-complaints" style="cursor: pointer; text-align: center;">
+            <h3 style="font-size: 2rem; margin-bottom: 10px;">⚖️</h3>
+            <h3>Complaints & Disputes</h3>
+            <p>Resolve user complaints.</p>
+          </div>
+
+          <div class="card admin-nav-card" id="nav-system-performance" style="cursor: pointer; text-align: center;">
+            <h3 style="font-size: 2rem; margin-bottom: 10px;">⚙️</h3>
+            <h3>System Performance</h3>
+            <p>Monitor system health and metrics.</p>
+          </div>
+
         </div>
-        <section class="host-spaces" style="margin-top: 20px;">
-          <h2>🚨 Active Panic Alerts & Logs</h2>
-          <div id="panic-logs-list">
-            ${panicLogsHtml}
-          </div>
-        </section>
       </div>
     `;
     containerEl.innerHTML = html;
+  }
+
+  function renderAdminGarageApprovals(garages) {
+    let listHtml = "<p>No garages found.</p>";
+    if (garages && garages.length > 0) {
+      listHtml = `<table class="spaces-table">
+        <thead><tr><th>Host</th><th>Location</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>${garages.map(g => `
+          <tr>
+            <td>${g.host?.name || "Unknown"} (${g.host?.email || ""})</td>
+            <td>${g.location?.address || "N/A"}</td>
+            <td>৳${g.price}/hr</td>
+            <td><span class="status-label ${g.approvalStatus === 'Approved' ? 'status-Open' : 'status-Closed'}">${g.approvalStatus || 'Approved'}</span></td>
+            <td>
+              <button class="btn btn-primary btn-approve-garage" data-id="${g._id}" style="width:auto; padding:0.25rem 0.5rem;" ${g.approvalStatus === 'Approved' ? 'disabled' : ''}>Approve</button>
+              <button class="btn btn-danger btn-reject-garage" data-id="${g._id}" style="width:auto; padding:0.25rem 0.5rem;" ${g.approvalStatus === 'Rejected' ? 'disabled' : ''}>Reject</button>
+            </td>
+          </tr>
+        `).join("")}</tbody>
+      </table>`;
+    }
+
+    containerEl.innerHTML = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>🏢 Garage Approvals</h1>
+          <div class="header-actions">
+            <button id="back-to-admin-hub-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
+          </div>
+        </header>
+        <div class="dashboard-content">${listHtml}</div>
+      </div>
+    `;
+  }
+
+  function renderAdminUsers(users) {
+    let listHtml = "<p>No users found.</p>";
+    if (users && users.length > 0) {
+      listHtml = `<table class="spaces-table">
+        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>${users.map(u => `
+          <tr>
+            <td>${u.name}</td>
+            <td>${u.email}</td>
+            <td>${u.role}</td>
+            <td><span class="status-label ${u.status === 'Active' ? 'status-Open' : 'status-Closed'}">${u.status || 'Active'}</span></td>
+            <td>
+              <button class="btn btn-primary btn-toggle-ban" data-id="${u._id}" style="width:auto; padding:0.25rem 0.5rem;">${u.status === 'Banned' ? 'Unban' : 'Ban'}</button>
+            </td>
+          </tr>
+        `).join("")}</tbody>
+      </table>`;
+    }
+
+    containerEl.innerHTML = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>👥 User Management</h1>
+          <div class="header-actions">
+            <button id="back-to-admin-hub-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
+          </div>
+        </header>
+        <div class="dashboard-content">${listHtml}</div>
+      </div>
+    `;
+  }
+
+  function renderAdminBookings(bookings) {
+    let listHtml = "<p>No bookings found.</p>";
+    if (bookings && bookings.length > 0) {
+      listHtml = `<table class="spaces-table">
+        <thead><tr><th>Date</th><th>Driver</th><th>Host</th><th>Duration</th><th>Total</th><th>Status</th></tr></thead>
+        <tbody>${bookings.map(b => `
+          <tr>
+            <td>${new Date(b.date).toLocaleDateString()}</td>
+            <td>${b.driver?.name || "Unknown"}</td>
+            <td>${b.garageSpace?.host?.name || "Unknown"}</td>
+            <td>${b.duration} (${b.startTime} - ${b.endTime})</td>
+            <td>৳${b.totalPrice}</td>
+            <td><span class="status-label status-${b.status}">${b.status}</span></td>
+          </tr>
+        `).join("")}</tbody>
+      </table>`;
+    }
+
+    containerEl.innerHTML = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>📋 Booking Monitoring</h1>
+          <div class="header-actions">
+            <button id="back-to-admin-hub-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
+          </div>
+        </header>
+        <div class="dashboard-content">${listHtml}</div>
+      </div>
+    `;
+  }
+
+  function renderAdminRevenue(analytics) {
+    let monthlyHtml = "";
+    if (analytics.monthlyData) {
+      monthlyHtml = `<ul style="list-style: none; padding: 0;">`;
+      for (const [month, rev] of Object.entries(analytics.monthlyData)) {
+        monthlyHtml += `<li style="padding: 10px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between;"><strong>${month}</strong> <span>৳${rev}</span></li>`;
+      }
+      monthlyHtml += `</ul>`;
+    }
+
+    containerEl.innerHTML = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>💰 Revenue Analytics</h1>
+          <div class="header-actions">
+            <button id="back-to-admin-hub-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
+          </div>
+        </header>
+        <div class="dashboard-content">
+          <div class="card" style="width: 100%; margin-bottom: 20px; text-align: center;">
+            <h3>Total Lifetime Revenue</h3>
+            <p class="stat">৳${analytics.totalRevenue}</p>
+          </div>
+          <div class="card" style="width: 100%;">
+            <h3>Monthly Breakdown</h3>
+            ${monthlyHtml}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderAdminRatings(ratings) {
+    containerEl.innerHTML = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>⭐ Aggregated Ratings</h1>
+          <div class="header-actions">
+            <button id="back-to-admin-hub-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
+          </div>
+        </header>
+        <div class="dashboard-content">
+          <div class="card" style="text-align: center;">
+            <h3>Platform Average Rating</h3>
+            <p class="stat" style="font-size: 3rem;">${ratings.averageRating} <span style="font-size: 1.5rem; color: #ffc107;">★</span></p>
+            <p>Based on ${ratings.totalRatings} total ratings</p>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderAdminComplaints(complaints) {
+    let listHtml = "<p>No complaints found.</p>";
+    if (complaints && complaints.length > 0) {
+      listHtml = `<table class="spaces-table">
+        <thead><tr><th>Date</th><th>User</th><th>Subject</th><th>Description</th><th>Status</th><th>Resolution</th><th>Actions</th></tr></thead>
+        <tbody>${complaints.map(c => `
+          <tr>
+            <td>${new Date(c.createdAt).toLocaleDateString()}</td>
+            <td>${c.user?.name || "Unknown"} (${c.user?.role || "Unknown"})</td>
+            <td>${c.subject}</td>
+            <td>${c.description}</td>
+            <td><span class="status-label ${c.status === 'Resolved' ? 'status-Open' : 'status-Closed'}">${c.status}</span></td>
+            <td>${c.resolutionNotes || "—"}</td>
+            <td>
+              ${c.status === 'Open' ? `<button class="btn btn-primary btn-resolve-complaint" data-id="${c._id}" style="width:auto; padding:0.25rem 0.5rem;">Resolve</button>` : ""}
+            </td>
+          </tr>
+        `).join("")}</tbody>
+      </table>`;
+    }
+
+    containerEl.innerHTML = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>⚖️ Complaints & Disputes</h1>
+          <div class="header-actions">
+            <button id="back-to-admin-hub-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
+          </div>
+        </header>
+        <div class="dashboard-content">${listHtml}</div>
+      </div>
+    `;
+  }
+
+  function renderAdminPerformance(perf) {
+    const uptimeHrs = (perf.uptime / 3600).toFixed(2);
+    const totalMemMB = (perf.totalMemory / (1024*1024)).toFixed(0);
+    const freeMemMB = (perf.freeMemory / (1024*1024)).toFixed(0);
+    const memUsage = ((perf.totalMemory - perf.freeMemory) / perf.totalMemory * 100).toFixed(1);
+
+    containerEl.innerHTML = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>⚙️ System Performance</h1>
+          <div class="header-actions">
+            <button id="back-to-admin-hub-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
+          </div>
+        </header>
+        <div class="dashboard-content">
+          <div class="card">
+            <h3>Server Uptime</h3>
+            <p class="stat">${uptimeHrs} Hours</p>
+          </div>
+          <div class="card">
+            <h3>Memory Usage</h3>
+            <p class="stat">${memUsage}%</p>
+            <p>${freeMemMB}MB free of ${totalMemMB}MB</p>
+          </div>
+          <div class="card">
+            <h3>CPU Load (1m)</h3>
+            <p class="stat">${perf.cpuLoad.toFixed(2)}</p>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   function showError(section, message) {
@@ -359,7 +637,7 @@ const ParkingView = (function () {
         <header class="dashboard-header">
           <h1>🅿️ All Listed Garages</h1>
           <div class="header-actions">
-            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
+            <button id="back-to-driver-hub-btn" class="btn btn-secondary">Back to Hub</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
@@ -404,6 +682,10 @@ const ParkingView = (function () {
             <span class="legend-item"><span class="marker-booked"></span> Booked</span>
             <button id="refresh-map-btn" class="btn-refresh" title="Refresh availability">🔄 Live Update</button>
           </div>
+        </div>
+        
+        <div class="garages-container" style="margin-top: 20px;">
+          ${garagesHtml}
         </div>
       </div>
     `;
@@ -529,7 +811,7 @@ const ParkingView = (function () {
         <header class="dashboard-header">
           <h1>📋 My Bookings</h1>
           <div class="header-actions">
-            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
+            <button id="back-to-driver-hub-btn" class="btn btn-secondary">Back to Hub</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
@@ -630,7 +912,7 @@ const ParkingView = (function () {
         <header class="dashboard-header">
           <h1>🎟️ Subscription Passes</h1>
           <div class="header-actions">
-            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
+            <button id="back-to-driver-hub-btn" class="btn btn-secondary">Back to Hub</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
@@ -719,7 +1001,7 @@ const ParkingView = (function () {
         <header class="dashboard-header">
           <h1>⭐ Rate Your Experiences</h1>
           <div class="header-actions">
-            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
+            <button id="back-to-driver-hub-btn" class="btn btn-secondary">Back to Hub</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
@@ -731,44 +1013,53 @@ const ParkingView = (function () {
   // ── FR-22: Panic Section ──
   function renderPanicSection(trustedContact) {
     const hasTrusted = trustedContact && trustedContact.email;
-    return `
-      <div class="panic-section" id="panic-section" style="margin: 1.5rem 2rem; padding: 1.5rem; background: #fff5f5; border: 2px solid #e74c3c; border-radius: 8px;">
-        <div style="margin-bottom: 1rem;">
-          <h3 style="color: #e74c3c; margin-bottom: 0.25rem;">🚨 Emergency Panic Button</h3>
-          <p style="color: #555; font-size: 0.9rem;">Press in case of emergency. Your location will be shared with your trusted contact.</p>
-        </div>
-
-        <div style="margin-bottom: 1rem;">
-          ${hasTrusted
-        ? `<p style="color:#28a745;">✅ Trusted contact: <strong>${trustedContact.name}</strong> (${trustedContact.email})</p>`
-        : `<p style="color:#e74c3c;">⚠️ No trusted contact set. Add one below before using the panic button.</p>`
-      }
-        </div>
-
-        <button id="panic-btn" style="background:#e74c3c; color:white; border:none; padding:1rem 2rem; font-size:1.2rem; font-weight:bold; border-radius:8px; cursor:pointer; width:100%;" ${hasTrusted ? '' : 'disabled'}>
-          🚨 PANIC
-        </button>
-        <div id="panic-status" style="margin-top:0.75rem; font-weight:bold;"></div>
-
-        <details style="margin-top:1.5rem;">
-          <summary style="cursor:pointer; color:#3498db; font-weight:500;">⚙️ Set Trusted Contact</summary>
-          <div style="margin-top:1rem;">
-            <div class="form-group">
-              <label>Contact Name</label>
-              <input type="text" id="tc-name" value="${trustedContact?.name || ''}" placeholder="e.g. Mom" />
-            </div>
-            <div class="form-group">
-              <label>Contact Email</label>
-              <input type="email" id="tc-email" value="${trustedContact?.email || ''}" placeholder="trusted@example.com" />
-            </div>
-            <div class="form-group">
-              <label>Contact Phone</label>
-              <input type="text" id="tc-phone" value="${trustedContact?.phone || ''}" placeholder="+880..." />
-            </div>
-            <button id="save-trusted-contact-btn" class="btn btn-primary" style="width:auto; padding:0.5rem 1.5rem;">Save Contact</button>
-            <div id="tc-status" style="margin-top:0.5rem; font-size:0.9rem;"></div>
+    containerEl.innerHTML = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>🚨 Emergency Panic</h1>
+          <div class="header-actions">
+            <button id="back-to-driver-hub-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
-        </details>
+        </header>
+        <div class="dashboard-content" style="display: block; max-width: 600px; margin: 0 auto;">
+          <div class="card" style="border-top: 4px solid #f03a47; padding: 40px; text-align: center; background: rgba(255, 255, 255, 0.9);">
+            <div style="margin-bottom: 2rem;">
+              <h3 style="color: #d82b38; margin-bottom: 0.5rem; font-size: 1.5rem;">🚨 PANIC MODE</h3>
+              <p style="color: #627d98; font-size: 1rem;">Pressing the button below will immediately share your current location with your trusted contact.</p>
+            </div>
+
+            <div style="margin-bottom: 2rem;">
+              ${hasTrusted
+                ? `<div style="background: #e0fdf4; color: #009255; padding: 15px; border-radius: 10px; font-weight: 600; display: inline-block;">✅ Trusted contact: <strong>${trustedContact.name}</strong> (${trustedContact.email})</div>`
+                : `<div style="background: #ffe3e3; color: #c53030; padding: 15px; border-radius: 10px; font-weight: 600; display: inline-block;">⚠️ No trusted contact set. Add one below first.</div>`
+              }
+            </div>
+
+            <button id="panic-btn" class="btn" style="background: linear-gradient(135deg, #f03a47 0%, #d82b38 100%); color: white; padding: 2rem; font-size: 1.8rem; font-weight: 800; border-radius: 20px; box-shadow: 0 10px 30px rgba(240, 58, 71, 0.4);" ${hasTrusted ? '' : 'disabled'}>
+              🚨 PANIC
+            </button>
+            <div id="panic-status" style="margin-top: 1rem; font-weight: bold; min-height: 24px;"></div>
+
+            <div style="margin-top: 3rem; text-align: left; background: #f8fbfd; padding: 25px; border-radius: 12px; border: 1px solid #d9e2ec;">
+              <h3 style="margin-bottom: 1.5rem; color: #102a43; font-size: 1.2rem;">⚙️ Trusted Contact Settings</h3>
+              <div class="form-group">
+                <label>Contact Name</label>
+                <input type="text" id="tc-name" value="${trustedContact?.name || ''}" placeholder="e.g. Spouse, Parent" />
+              </div>
+              <div class="form-group">
+                <label>Contact Email</label>
+                <input type="email" id="tc-email" value="${trustedContact?.email || ''}" placeholder="trusted@example.com" />
+              </div>
+              <div class="form-group">
+                <label>Contact Phone</label>
+                <input type="text" id="tc-phone" value="${trustedContact?.phone || ''}" placeholder="+880..." />
+              </div>
+              <button id="save-trusted-contact-btn" class="btn btn-primary" style="width: auto;">Update Contact</button>
+              <div id="tc-status" style="margin-top: 0.5rem; font-size: 0.9rem;"></div>
+            </div>
+          </div>
+        </div>
       </div>
     `;
   }
@@ -823,6 +1114,7 @@ const ParkingView = (function () {
     renderAuthPage,
     renderDriverDashboard,
     renderGarageHostDashboard,
+    renderAddGarageSpaceForm,
     renderAdminDashboard,
     renderGarageListing,
     filterAndRenderGarages,
@@ -835,6 +1127,13 @@ const ParkingView = (function () {
     renderMyRatings,
     renderPanicSection,
     renderPanicLogs,
+    renderAdminGarageApprovals,
+    renderAdminUsers,
+    renderAdminBookings,
+    renderAdminRevenue,
+    renderAdminRatings,
+    renderAdminComplaints,
+    renderAdminPerformance,
     showError
   };
 })();

@@ -38,6 +38,8 @@ const paymentController = require("../controllers/paymentController");
 const subscriptionController = require("../controllers/subscriptionController");
 const ratingController = require("../controllers/ratingController");
 const panicController = require("../controllers/panicController");
+const adminController = require("../controllers/adminController");
+const complaintController = require("../controllers/complaintController");
 
 const { authMiddleware, roleMiddleware } = require("../middleware/auth");
 
@@ -227,6 +229,23 @@ router.put(
   roleMiddleware(["Admin"]),
   panicController.resolvePanic
 );
+
+// ── Admin Dashboard Routes ──
+router.get("/admin/garages", authMiddleware, roleMiddleware(["Admin"]), adminController.getGarages);
+router.put("/admin/garages/:id/approve", authMiddleware, roleMiddleware(["Admin"]), adminController.updateGarageApprovalStatus);
+
+router.get("/admin/users", authMiddleware, roleMiddleware(["Admin"]), adminController.getUsers);
+router.put("/admin/users/:id/ban", authMiddleware, roleMiddleware(["Admin"]), adminController.toggleUserBan);
+
+router.get("/admin/bookings", authMiddleware, roleMiddleware(["Admin"]), adminController.getAllBookings);
+router.get("/admin/revenue", authMiddleware, roleMiddleware(["Admin"]), adminController.getRevenueAnalytics);
+router.get("/admin/ratings", authMiddleware, roleMiddleware(["Admin"]), adminController.getAggregatedRatings);
+router.get("/admin/complaints", authMiddleware, roleMiddleware(["Admin"]), adminController.getComplaints);
+router.put("/admin/complaints/:id/resolve", authMiddleware, roleMiddleware(["Admin"]), adminController.resolveComplaint);
+router.get("/admin/performance", authMiddleware, roleMiddleware(["Admin"]), adminController.getSystemPerformance);
+
+// ── User Complaints ──
+router.post("/complaints", authMiddleware, complaintController.submitComplaint);
 
 
 module.exports = router;

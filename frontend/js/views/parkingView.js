@@ -121,10 +121,16 @@ const ParkingView = (function () {
             <p>Review the garages you have visited.</p>
           </div>
 
-          <div class="card admin-nav-card" id="nav-emergency-panic" style="cursor: pointer; text-align: center; border-bottom: 4px solid #f03a47;">
+          <div class="card admin-nav-card" id="nav-emergency-panic" style="cursor: pointer; text-align: center;">
             <h3 style="font-size: 2.5rem; margin-bottom: 10px;">🚨</h3>
             <h3 style="color: #d82b38;">Emergency Panic</h3>
             <p>Configure trusted contacts and trigger SOS.</p>
+          </div>
+
+          <div class="card admin-nav-card" id="nav-favorite-garages" style="cursor: pointer; text-align: center; border-bottom: 4px solid #ff4757;">
+            <h3 style="font-size: 2.5rem; margin-bottom: 10px;">❤️</h3>
+            <h3>Favorite Garages</h3>
+            <p>Your saved garages for quick rebooking.</p>
           </div>
 
         </div>
@@ -133,82 +139,262 @@ const ParkingView = (function () {
     containerEl.innerHTML = html;
   }
 
-  function renderGarageHostDashboard(data, spaces = []) {
-    // build table of spaces
-    let spacesHtml = "<p>No spaces added yet.</p>";
-    if (spaces.length) {
+  function renderGarageHostDashboard(data) {
+    const d = data.data;
+    const html = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>🏢 Garage Host Dashboard</h1>
+          <div class="header-actions">
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
+          </div>
+        </header>
+
+        <div class="dashboard-content" style="margin-bottom: 30px;">
+          <div class="card">
+            <h3>Total Spaces</h3>
+            <p class="stat">${d.totalSpaces}</p>
+          </div>
+          <div class="card">
+            <h3>Occupied Today</h3>
+            <p class="stat">${d.occupiedSpaces}</p>
+          </div>
+          <div class="card">
+            <h3>Monthly Revenue</h3>
+            <p class="stat">${d.monthlyRevenue}</p>
+          </div>
+        </div>
+
+        <h2 style="color: #102a43; margin-bottom: 20px; font-weight: 700;">Host Management Hub</h2>
+        <div class="dashboard-content" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; width: 100%;">
+
+          <div class="card admin-nav-card" id="host-nav-my-garages" style="cursor: pointer; text-align: center; border-bottom: 4px solid #00b569;">
+            <h3 style="font-size: 2.5rem; margin-bottom: 10px;">🏗️</h3>
+            <h3>My Garages</h3>
+            <p>View, edit and manage your listed spaces.</p>
+          </div>
+
+          <div class="card admin-nav-card" id="host-nav-add-garage" style="cursor: pointer; text-align: center; border-bottom: 4px solid #667eea;">
+            <h3 style="font-size: 2.5rem; margin-bottom: 10px;">➕</h3>
+            <h3>List New Garage</h3>
+            <p>Add a new parking space to the platform.</p>
+          </div>
+
+          <div class="card admin-nav-card" id="host-nav-statistics" style="cursor: pointer; text-align: center; border-bottom: 4px solid #f093fb;">
+            <h3 style="font-size: 2.5rem; margin-bottom: 10px;">📊</h3>
+            <h3>Booking Statistics</h3>
+            <p>Daily, weekly and monthly income summaries.</p>
+          </div>
+
+          <div class="card admin-nav-card" id="host-nav-notifications" style="cursor: pointer; text-align: center; border-bottom: 4px solid #feca57;">
+            <h3 style="font-size: 2.5rem; margin-bottom: 10px;">🔔</h3>
+            <h3>Notifications</h3>
+            <p>View booking alerts and activity updates.</p>
+          </div>
+
+          <div class="card admin-nav-card" id="host-nav-ratings" style="cursor: pointer; text-align: center; border-bottom: 4px solid #ff9f43;">
+            <h3 style="font-size: 2.5rem; margin-bottom: 10px;">⭐</h3>
+            <h3>My Ratings</h3>
+            <p>See reviews and ratings from your guests.</p>
+          </div>
+
+          <div class="card admin-nav-card" id="host-nav-browse" style="cursor: pointer; text-align: center; border-bottom: 4px solid #48dbfb;">
+            <h3 style="font-size: 2.5rem; margin-bottom: 10px;">🅿️</h3>
+            <h3>Browse All Garages</h3>
+            <p>See all listings across the platform.</p>
+          </div>
+
+        </div>
+      </div>
+    `;
+    containerEl.innerHTML = html;
+  }
+
+  // ── Host: Manage Spaces page ──
+  function renderHostManageSpaces(spaces) {
+    let spacesHtml = "<p class='no-bookings'>No spaces added yet. Go to 'List New Garage' to get started.</p>";
+    if (spaces && spaces.length) {
       spacesHtml = `<table class="spaces-table">
           <thead><tr><th>Images</th><th>Price</th><th>Vehicle Types</th><th>Hours</th><th>Availability</th><th>Actions</th></tr></thead>
-          <tbody>${spaces
-          .map(s => {
+          <tbody>${spaces.map(s => {
             const imgs = (s.images || []).map(u => `<img src="${u}" alt="space" class="thumb"/>`).join(" ");
             const types = (s.vehicleTypes || []).join(", ");
-            const hours = s.availableHours ? `${s.availableHours.start} - ${s.availableHours.end}` : "";
+            const hours = s.availableHours ? `${s.availableHours.start} - ${s.availableHours.end}` : "—";
             const isChecked = s.status === "Open" ? "checked" : "";
-            const statusClass = `status-${s.status}`;
-
             return `<tr data-id="${s._id}">
-              <td>${imgs}</td>
+              <td>${imgs || "<span style='color:#9fb3c8;'>No images</span>"}</td>
               <td>৳${s.price}</td>
-              <td>${types}</td>
+              <td>${types || "—"}</td>
               <td>${hours}</td>
               <td>
                 <label class="switch">
                   <input type="checkbox" class="toggle-availability" data-id="${s._id}" ${isChecked}>
                   <span class="slider"></span>
                 </label>
-                <span class="status-label ${statusClass}">${s.status}</span>
+                <span class="status-label status-${s.status}">${s.status}</span>
               </td>
-              <td><button class="edit-space-btn" data-id="${s._id}">Edit</button> <button class="delete-space-btn" data-id="${s._id}">Delete</button></td>
+              <td>
+                <button class="edit-space-btn" data-id="${s._id}">Edit</button>
+                <button class="delete-space-btn" data-id="${s._id}">Delete</button>
+              </td>
             </tr>`;
-          })
-          .join("")}</tbody>
+          }).join("")}</tbody>
         </table>`;
     }
 
-    const html = `
+    containerEl.innerHTML = `
       <div class="dashboard">
         <header class="dashboard-header">
-          <h1>🏢 Garage Host Dashboard</h1>
+          <h1>🏗️ My Garages</h1>
           <div class="header-actions">
-            <button id="list-new-garage-btn" class="btn btn-primary">➕ List New Garage</button>
-            <button id="my-ratings-btn" class="btn btn-primary">⭐ My Ratings</button>
-            <button id="view-garages-btn" class="btn btn-primary">View Garages</button>
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Hub</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
+        <div class="bookings-container">${spacesHtml}</div>
+      </div>
+    `;
+  }
 
-        <section class="notifications-section">
-          <h2>🔔 Notifications</h2>
-          <div id="notifications-list" class="notification-list">
-            <p class="no-notifications">Loading notifications...</p>
-          </div>
-        </section>
+  // ── Host: Statistics page ──
+  function renderHostStats(data) {
+    const stats = data.data.stats;
+    let statsHtml = "<p class='no-bookings'>No booking data available yet.</p>";
 
-        <div class="dashboard-content">
-          <div class="card">
-            <h3>Total Spaces</h3>
-            <p class="stat">${data.data.totalSpaces}</p>
+    if (stats) {
+      const { daily, weekly, monthly, last7Days } = stats;
+      const maxIncome   = Math.max(...(last7Days || []).map(d => d.income), 1);
+      const maxBookings = Math.max(...(last7Days || []).map(d => d.bookings), 1);
+
+      const barChartIncome = (last7Days || []).map(d => {
+        const pct = Math.round((d.income / maxIncome) * 100);
+        return `
+          <div class="chart-bar-group">
+            <div class="chart-bar-wrap">
+              <div class="chart-bar income-bar" style="height:${Math.max(pct, d.income > 0 ? 6 : 0)}%">
+                <span class="bar-tooltip">৳${d.income.toFixed(0)}</span>
+              </div>
+            </div>
+            <div class="chart-label">${d.label.split(",")[0]}</div>
+          </div>`;
+      }).join("");
+
+      const barChartBookings = (last7Days || []).map(d => {
+        const pct = Math.round((d.bookings / maxBookings) * 100);
+        return `
+          <div class="chart-bar-group">
+            <div class="chart-bar-wrap">
+              <div class="chart-bar bookings-bar" style="height:${Math.max(pct, d.bookings > 0 ? 8 : 0)}%">
+                <span class="bar-tooltip">${d.bookings}</span>
+              </div>
+            </div>
+            <div class="chart-label">${d.label.split(",")[0]}</div>
+          </div>`;
+      }).join("");
+
+      statsHtml = `
+        <div class="host-stats-section">
+          <div class="stats-period-grid">
+            <div class="stats-period-card daily-card">
+              <div class="period-icon">📅</div>
+              <div class="period-label">Today</div>
+              <div class="period-bookings">${daily.bookings}<span>booking${daily.bookings !== 1 ? 's' : ''}</span></div>
+              <div class="period-income">৳${daily.income.toFixed(2)}</div>
+            </div>
+            <div class="stats-period-card weekly-card">
+              <div class="period-icon">📆</div>
+              <div class="period-label">This Week</div>
+              <div class="period-bookings">${weekly.bookings}<span>booking${weekly.bookings !== 1 ? 's' : ''}</span></div>
+              <div class="period-income">৳${weekly.income.toFixed(2)}</div>
+            </div>
+            <div class="stats-period-card monthly-card">
+              <div class="period-icon">🗓️</div>
+              <div class="period-label">This Month</div>
+              <div class="period-bookings">${monthly.bookings}<span>booking${monthly.bookings !== 1 ? 's' : ''}</span></div>
+              <div class="period-income">৳${monthly.income.toFixed(2)}</div>
+            </div>
           </div>
-          <div class="card">
-            <h3>Occupied Today</h3>
-            <p class="stat">${data.data.occupiedSpaces}</p>
-          </div>
-          <div class="card">
-            <h3>Monthly Revenue</h3>
-            <p class="stat">${data.data.monthlyRevenue}</p>
+
+          <div class="chart-tabs-container">
+            <div class="chart-tab-bar">
+              <button class="chart-tab active" data-chart="income">💰 Income</button>
+              <button class="chart-tab" data-chart="bookings">📋 Bookings</button>
+            </div>
+            <div id="chart-income" class="chart-panel" style="display:flex;">
+              <div class="chart-title">Income — Last 7 Days</div>
+              <div class="bar-chart">${barChartIncome || '<p style="color:#888;padding:2rem;text-align:center;">No data yet</p>'}</div>
+            </div>
+            <div id="chart-bookings" class="chart-panel" style="display:none;">
+              <div class="chart-title">Bookings — Last 7 Days</div>
+              <div class="bar-chart">${barChartBookings || '<p style="color:#888;padding:2rem;text-align:center;">No data yet</p>'}</div>
+            </div>
           </div>
         </div>
-        <section class="host-spaces">
-          <h2>Your Garage Spaces</h2>
-          <div id="spaces-list">
-            ${spacesHtml}
+      `;
+    }
+
+    containerEl.innerHTML = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>📊 Booking Statistics &amp; Income</h1>
+          <div class="header-actions">
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
-        </section>
+        </header>
+        <div class="bookings-container">${statsHtml}</div>
       </div>
     `;
 
-    containerEl.innerHTML = html;
+    // Wire chart tab switching
+    document.querySelectorAll(".chart-tab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".chart-tab").forEach(t => t.classList.remove("active"));
+        document.querySelectorAll(".chart-panel").forEach(p => { p.style.display = "none"; });
+        tab.classList.add("active");
+        const panel = document.getElementById(`chart-${tab.dataset.chart}`);
+        if (panel) panel.style.display = "flex";
+      });
+    });
+  }
+
+  // ── Host: Notifications page ──
+  function renderHostNotifications(notifications) {
+    let notifHtml;
+    if (!notifications || notifications.length === 0) {
+      notifHtml = "<p class='no-bookings'>No notifications yet.</p>";
+    } else {
+      notifHtml = `<div class="bookings-list">
+        ${notifications.map(n => `
+          <div class="booking-card ${n.readStatus ? '' : 'unread-notif'}">
+            <div class="booking-card-header">
+              <span class="booking-date">${new Date(n.timestamp).toLocaleString()}</span>
+              ${!n.readStatus ? `<span class="booking-status status-confirmed">NEW</span>` : ''}
+            </div>
+            <div class="booking-card-body">
+              <p>${n.message}</p>
+            </div>
+            ${!n.readStatus ? `
+            <div class="booking-card-actions">
+              <button class="btn-mark-read btn btn-primary" data-id="${n._id}" style="width:auto; padding:0.5rem 1rem;">✓ Mark as Read</button>
+            </div>` : ''}
+          </div>
+        `).join("")}
+      </div>`;
+    }
+
+    containerEl.innerHTML = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>🔔 Notifications</h1>
+          <div class="header-actions">
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
+          </div>
+        </header>
+        <div class="bookings-container">${notifHtml}</div>
+      </div>
+    `;
   }
 
   function renderAddGarageSpaceForm() {
@@ -623,6 +809,7 @@ const ParkingView = (function () {
                   <div class="garage-card-actions">
                     ${viewOnMapBtn}
                     ${bookBtn}
+                    ${userRole === "Driver" ? `<button class="btn-toggle-favorite" data-id="${s._id}" title="Add to Favorites">❤️</button>` : ""}
                   </div>
                 </div>
               </div>
@@ -1110,10 +1297,58 @@ const ParkingView = (function () {
     `;
   }
 
+  // ── Favorite Garages Page ──
+  function renderFavoriteGarages(favorites) {
+    let favoritesHtml = "<p class='no-favorites'>You haven't saved any favorite garages yet. Browse garages and tap the heart icon to save them!</p>";
+
+    if (favorites && favorites.length > 0) {
+      favoritesHtml = `<div class="garage-grid">
+        ${favorites.filter(s => s !== null).map(s => {
+        const imgs = (s.images || []).map(u => `<img src="${u}" alt="garage" class="garage-thumb"/>`).join(" ");
+        const types = (s.vehicleTypes || []).join(", ");
+        const address = s.location?.address || "Not specified";
+        const hostName = s.host?.name || "Unknown";
+
+        return `
+            <div class="garage-card favorite-card">
+              <div class="garage-images">${imgs || "<p>No images</p>"}</div>
+              <div class="garage-info">
+                <h3>৳${s.price}/hour</h3>
+                <p><strong>Address:</strong> ${address}</p>
+                <p><strong>Vehicle Types:</strong> ${types || "Not specified"}</p>
+                <p><strong>Host:</strong> ${hostName}</p>
+                <div class="garage-card-actions">
+                  <button class="btn-book-now btn-quick-rebook" data-space-id="${s._id}" data-price="${s.price}">⚡ Quick Rebook</button>
+                  <button class="btn-remove-favorite" data-id="${s._id}">💔 Remove</button>
+                </div>
+              </div>
+            </div>
+          `;
+      }).join("")}
+      </div>`;
+    }
+
+    containerEl.innerHTML = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>❤️ Favorite Garages</h1>
+          <div class="header-actions">
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
+          </div>
+        </header>
+        <div class="dashboard-content">${favoritesHtml}</div>
+      </div>
+    `;
+  }
+
   return {
     renderAuthPage,
     renderDriverDashboard,
     renderGarageHostDashboard,
+    renderHostManageSpaces,
+    renderHostStats,
+    renderHostNotifications,
     renderAddGarageSpaceForm,
     renderAdminDashboard,
     renderGarageListing,
@@ -1134,6 +1369,7 @@ const ParkingView = (function () {
     renderAdminRatings,
     renderAdminComplaints,
     renderAdminPerformance,
-    showError
+    showError,
+    renderFavoriteGarages
   };
 })();

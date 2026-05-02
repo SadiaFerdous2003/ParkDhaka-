@@ -40,6 +40,7 @@ const ratingController = require("../controllers/ratingController");
 const panicController = require("../controllers/panicController");
 const adminController = require("../controllers/adminController");
 const complaintController = require("../controllers/complaintController");
+const userController = require("../controllers/userController");
 
 const { authMiddleware, roleMiddleware } = require("../middleware/auth");
 
@@ -47,6 +48,14 @@ const { authMiddleware, roleMiddleware } = require("../middleware/auth");
 router.post("/register", authController.register);
 router.post("/login", authController.login);
 router.put("/profile", authMiddleware, authController.updateProfile);
+
+// favorites
+router.get("/favorites", authMiddleware, roleMiddleware(["Driver"]), userController.getFavorites);
+router.post("/favorites/:garageId", authMiddleware, roleMiddleware(["Driver"]), userController.toggleFavorite);
+
+// trusted contact (used by panic section)
+router.get("/users/trusted-contact", authMiddleware, roleMiddleware(["Driver"]), userController.getTrustedContact);
+router.put("/users/trusted-contact", authMiddleware, roleMiddleware(["Driver"]), userController.updateTrustedContact);
 
 // existing parking endpoints
 router.get("/parkings", parkingController.getParkings);
@@ -207,6 +216,7 @@ router.get(
 
 // ── Ratings (FR-21) ──
 router.post("/ratings", authMiddleware, ratingController.submitRating);
+router.get("/ratings/my-pending", authMiddleware, roleMiddleware(["Driver"]), userController.getMyPendingRatings);
 router.get("/garage-spaces/:garageId/ratings", authMiddleware, ratingController.getGarageRatings);
 router.get("/users/:userId/ratings", authMiddleware, ratingController.getUserRatings);
 
@@ -216,6 +226,13 @@ router.post(
   authMiddleware,
   roleMiddleware(["Driver"]),
   panicController.triggerPanic
+);
+// Admin panic logs — frontend calls /panic/logs
+router.get(
+  "/panic/logs",
+  authMiddleware,
+  roleMiddleware(["Admin"]),
+  panicController.getPanicLogs
 );
 router.get(
   "/panic",

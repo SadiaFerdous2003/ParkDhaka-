@@ -202,24 +202,9 @@ const App = (function () {
         const data = await response.json();
 
         if (role === "GarageHost") {
-          try {
-            const spacesRes = await fetch(`${API_BASE_URL}/garage-spaces`, {
-              method: "GET",
-              headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
-            });
-            let spaces = [];
-            if (spacesRes.ok) spaces = await spacesRes.json();
-            parkingView.renderGarageHostDashboard(data, spaces);
-            currentSpaces = spaces;
-            setupGarageHostListeners();
-            loadNotifications();
-          } catch (err) {
-            console.error("Error loading garage spaces", err);
-            currentSpaces = [];
-            parkingView.renderGarageHostDashboard(data, []);
-            setupGarageHostListeners();
-            loadNotifications();
-          }
+          // Hub: no spaces needed at this level
+          parkingView.renderGarageHostDashboard(data);
+          setupGarageHostListeners();
         } else if (role === "Driver") {
           let waitlistEntries = [];
           try {
@@ -265,7 +250,18 @@ const App = (function () {
     if (viewGaragesBtn) viewGaragesBtn.addEventListener("click", loadGarageListing);
 
     const backBtn = document.getElementById("back-to-dashboard-btn");
-    if (backBtn) backBtn.addEventListener("click", () => loadDashboard(currentUser.role));
+    if (backBtn) {
+      backBtn.addEventListener("click", () => {
+        console.log("Back to Dashboard clicked");
+        const role = currentUser?.role || JSON.parse(localStorage.getItem("user"))?.role;
+        if (role) {
+          loadDashboard(role);
+        } else {
+          console.error("No user role found for back to dashboard");
+          showAuthPage();
+        }
+      });
+    }
   }
 
   function setupMyBookingsButton() {
@@ -383,6 +379,7 @@ const App = (function () {
           window.setMapToggleData(spaces, currentUser?.role);
         }
         initGaragesMap(spaces, currentUser?.role);
+        setupFavoriteToggleButtons();
       } else if (response.status === 401) {
         logout();
       }
@@ -406,8 +403,8 @@ const App = (function () {
       const minPrice = minPriceInput?.value || "";
       const maxPrice = maxPriceInput?.value || "";
       parkingView.filterAndRenderGarages(vehicleType, minPrice, maxPrice, currentUser?.role);
-      if (currentUser?.role === "Driver") attachDriverBackBtn();
-      else if (currentUser?.role === "Admin") attachAdminBackBtn();
+      if (currentUser?.role === "Driver") setupBackToDashboardListener();
+      else if (currentUser?.role === "Admin") setupBackToDashboardListener();
       setTimeout(() => setupFilterBar(spaces), 150);
     });
 
@@ -416,8 +413,8 @@ const App = (function () {
       if (minPriceInput) minPriceInput.value = "";
       if (maxPriceInput) maxPriceInput.value = "";
       parkingView.renderGarageListing(spaces, currentUser?.role);
-      if (currentUser?.role === "Driver") attachDriverBackBtn();
-      else if (currentUser?.role === "Admin") attachAdminBackBtn();
+      if (currentUser?.role === "Driver") setupBackToDashboardListener();
+      else if (currentUser?.role === "Admin") setupBackToDashboardListener();
       setTimeout(() => setupFilterBar(spaces), 150);
     });
   }
@@ -441,14 +438,13 @@ const App = (function () {
         }
       });
     }
-
     if (refreshBtn) {
       refreshBtn.addEventListener("click", async () => {
         refreshBtn.textContent = "⏳ Updating...";
         refreshBtn.disabled = true;
         try {
           const token = localStorage.getItem("token");
-          const response = await fetch(`${API_BASE_URL}/garage-spaces`, {
+          const response = await fetch(`${API_BASE_URL}/garage-spaces/all`, {
             headers: token ? { "Authorization": `Bearer ${token}` } : {}
           });
           if (response.ok) {
@@ -464,6 +460,24 @@ const App = (function () {
         }
       });
     }
+  }
+
+  function setupFavoriteToggleButtons() {
+    document.querySelectorAll(".btn-toggle-favorite").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const garageId = btn.dataset.id;
+        await handleToggleFavorite(garageId);
+        // Toggle icon state
+        if (btn.innerText === "❤️") {
+          btn.innerText = "🖤";
+          btn.title = "Removed from Favorites";
+        } else {
+          btn.innerText = "❤️";
+          btn.title = "Added to Favorites";
+        }
+      });
+    });
   }
 
   function logout() {
@@ -664,25 +678,81 @@ const App = (function () {
   }
 
   function setupGarageHostListeners() {
-    const listNewBtn = document.getElementById("list-new-garage-btn");
-    if (listNewBtn) listNewBtn.addEventListener("click", loadAddGarageSpaceForm);
-
-    function hostSpacesClickHandler(e) {
-      const target = e.target;
-      if (target.matches('.edit-space-btn')) handleEditSpace(target.dataset.id);
-      else if (target.matches('.delete-space-btn')) handleDeleteSpace(target.dataset.id);
+    // ── Hub nav cards ──
+    const navMap = {
+      "host-nav-my-garages":   loadHostManageSpaces,
+      "host-nav-add-garage":   loadAddGarageSpaceForm,
+      "host-nav-statistics":   loadHostStats,
+      "host-nav-notifications":loadHostNotifications,
+      "host-nav-ratings":      loadMyRatings,
+      "host-nav-browse":       loadGarageListing
+    };
+    for (const [id, handler] of Object.entries(navMap)) {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener("click", handler);
     }
 
+    // Global delegate for edit/delete/toggle (added once)
     if (!hostListenerAdded) {
-      document.addEventListener('click', hostSpacesClickHandler);
-      document.addEventListener('change', async (e) => {
-        if (e.target.matches('.toggle-availability')) handleToggleAvailability(e.target);
+      document.addEventListener("click", (e) => {
+        if (e.target.matches(".edit-space-btn"))   handleEditSpace(e.target.dataset.id);
+        if (e.target.matches(".delete-space-btn")) handleDeleteSpace(e.target.dataset.id);
+        if (e.target.matches(".btn-mark-read"))    handleMarkNotificationAsRead(e.target.dataset.id);
       });
-      document.addEventListener('click', (e) => {
-        if (e.target.matches('.btn-mark-read')) handleMarkNotificationAsRead(e.target.dataset.id);
+      document.addEventListener("change", async (e) => {
+        if (e.target.matches(".toggle-availability")) handleToggleAvailability(e.target);
       });
       hostListenerAdded = true;
     }
+  }
+
+  // ── Host: My Garages page ──
+  async function loadHostManageSpaces() {
+    const token = localStorage.getItem("token");
+    if (!token) { showAuthPage(); return; }
+    try {
+      const res = await fetch(`${API_BASE_URL}/garage-spaces`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const spaces = res.ok ? await res.json() : [];
+      currentSpaces = spaces;
+      parkingView.renderHostManageSpaces(spaces);
+      setupBackToDashboardListener();
+      setupLogoutButton();
+      // re-attach edit/delete since we replaced innerHTML
+    } catch (err) { console.error(err); }
+  }
+
+  // ── Host: Statistics page ──
+  async function loadHostStats() {
+    const token = localStorage.getItem("token");
+    if (!token) { showAuthPage(); return; }
+    try {
+      const res = await fetch(`${API_BASE_URL}/dashboard/garage-host`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        parkingView.renderHostStats(data);
+        setupBackToDashboardListener();
+        setupLogoutButton();
+      }
+    } catch (err) { console.error(err); }
+  }
+
+  // ── Host: Notifications page ──
+  async function loadHostNotifications() {
+    const token = localStorage.getItem("token");
+    if (!token) { showAuthPage(); return; }
+    try {
+      const res = await fetch(`${API_BASE_URL}/notifications`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const notifications = res.ok ? await res.json() : [];
+      parkingView.renderHostNotifications(notifications);
+      setupBackToDashboardListener();
+      setupLogoutButton();
+    } catch (err) { console.error(err); }
   }
 
   async function loadNotifications() {
@@ -1141,7 +1211,7 @@ const App = (function () {
       });
       const contact = res.ok ? await res.json() : {};
       parkingView.renderPanicSection(contact);
-      attachDriverBackBtn();
+      setupBackToDashboardListener();
       setupPanicListeners();
     } catch (err) { console.error(err); }
   }
@@ -1248,6 +1318,63 @@ const App = (function () {
     });
   }
 
+  // ── Favorite Garages ──
+  async function loadFavoriteGarages() {
+    const token = localStorage.getItem("token");
+    if (!token) { showAuthPage(); return; }
+    try {
+      const res = await fetch(`${API_BASE_URL}/favorites`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const favorites = await res.json();
+        parkingView.renderFavoriteGarages(favorites);
+        setupBackToDashboardListener();
+        setupLogoutButton();
+        setupFavoriteActions();
+      } else {
+        const data = await res.json();
+        alert(data.message || "Failed to load favorites");
+      }
+    } catch (err) {
+      console.error("Error loading favorites:", err);
+      alert("Network error. Please try again.");
+    }
+  }
+
+  function setupFavoriteActions() {
+    // Quick rebook
+    document.querySelectorAll(".btn-quick-rebook").forEach(btn => {
+      btn.addEventListener("click", () => handleBookNow(btn.dataset.spaceId));
+    });
+
+    // Remove favorite
+    document.querySelectorAll(".btn-remove-favorite").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        await handleToggleFavorite(btn.dataset.id);
+        loadFavoriteGarages();
+      });
+    });
+  }
+
+  async function handleToggleFavorite(garageId) {
+    const token = localStorage.getItem("token");
+    if (!token) { alert("Please login to save favorites"); return; }
+    try {
+      const res = await fetch(`${API_BASE_URL}/favorites/${garageId}`, {
+        method: "POST",
+        headers: { 
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        console.log("Favorite toggled:", data.message);
+      }
+    } catch (err) { console.error("Error toggling favorite:", err); }
+  }
+
   // ── Driver Dashboard Functions ──
   function setupDriverDashboardListeners() {
     const map = {
@@ -1255,12 +1382,20 @@ const App = (function () {
       "nav-my-bookings": loadMyBookings,
       "nav-monthly-passes": loadSubscriptionPasses,
       "nav-my-ratings": loadMyRatings,
-      "nav-emergency-panic": loadPanicSection
+      "nav-emergency-panic": loadPanicSection,
+      "nav-favorite-garages": loadFavoriteGarages
     };
 
     for (const [id, handler] of Object.entries(map)) {
       const el = document.getElementById(id);
-      if (el) el.addEventListener("click", handler);
+      if (el) {
+        el.addEventListener("click", (e) => {
+          console.log(`Clicked on ${id}`);
+          handler();
+        });
+      } else {
+        console.warn(`Element with id ${id} not found`);
+      }
     }
   }
 

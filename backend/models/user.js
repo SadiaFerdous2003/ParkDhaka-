@@ -17,8 +17,10 @@ const userSchema = new mongoose.Schema({
   },
   trustedContact: {
     name: { type: String },
+    email: { type: String },
     phone: { type: String }
   },
+  favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: "GarageSpace" }],
   createdAt: { type: Date, default: Date.now }
 });
 

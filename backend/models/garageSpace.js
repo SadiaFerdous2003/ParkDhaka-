@@ -19,6 +19,11 @@ const garageSpaceSchema = new mongoose.Schema({
     enum: ["Open", "Closed"], 
     default: "Open" 
   },
+  approvalStatus: {
+    type: String,
+    enum: ["Pending", "Approved", "Rejected"],
+    default: "Pending"
+  },
   createdAt: { type: Date, default: Date.now }
 
 });

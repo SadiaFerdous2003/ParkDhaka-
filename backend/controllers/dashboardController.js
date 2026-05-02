@@ -39,36 +39,82 @@ exports.getGarageHostDashboard = async (req, res) => {
     const spaces = await GarageSpace.find({ host: hostId }).select("_id");
     const spaceIds = spaces.map((s) => s._id);
 
-    // Occupied = confirmed bookings for today
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
+    const now = new Date();
 
+    // ── Today ──
+    const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+    const todayEnd   = new Date(now); todayEnd.setHours(23, 59, 59, 999);
+
+    const todayBookings = await Booking.find({
+      garageSpace: { $in: spaceIds },
+      status: { $in: ["confirmed", "completed"] },
+      date: { $gte: todayStart, $lte: todayEnd }
+    });
+    const dailyBookings = todayBookings.length;
+    const dailyIncome   = todayBookings.reduce((s, b) => s + (b.totalPrice || 0), 0);
+
+    // ── This Week (Mon–Sun) ──
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
+    weekStart.setHours(0, 0, 0, 0);
+
+    const weeklyBookingDocs = await Booking.find({
+      garageSpace: { $in: spaceIds },
+      status: { $in: ["confirmed", "completed"] },
+      date: { $gte: weekStart, $lte: todayEnd }
+    });
+    const weeklyBookings = weeklyBookingDocs.length;
+    const weeklyIncome   = weeklyBookingDocs.reduce((s, b) => s + (b.totalPrice || 0), 0);
+
+    // ── This Month ──
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const monthlyBookingDocs = await Booking.find({
+      garageSpace: { $in: spaceIds },
+      status: { $in: ["confirmed", "completed"] },
+      date: { $gte: monthStart, $lte: todayEnd }
+    });
+    const monthlyBookings = monthlyBookingDocs.length;
+    const monthlyIncome   = monthlyBookingDocs.reduce((s, b) => s + (b.totalPrice || 0), 0);
+
+    // ── Occupied today (confirmed only) ──
     const occupiedSpaces = await Booking.countDocuments({
       garageSpace: { $in: spaceIds },
       status: "confirmed",
       date: { $gte: todayStart, $lte: todayEnd }
     });
 
-    // Monthly revenue — sum totalPrice of confirmed/completed bookings this month
-    const monthStart = new Date();
-    monthStart.setDate(1);
-    monthStart.setHours(0, 0, 0, 0);
-
-    const monthlyBookings = await Booking.find({
-      garageSpace: { $in: spaceIds },
-      status: { $in: ["confirmed", "completed"] },
-      date: { $gte: monthStart }
-    });
-    const monthlyRevenue = monthlyBookings.reduce((sum, b) => sum + (b.totalPrice || 0), 0);
+    // ── Last 7 days per-day chart data ──
+    const last7 = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const ds = new Date(d); ds.setHours(0, 0, 0, 0);
+      const de = new Date(d); de.setHours(23, 59, 59, 999);
+      const dayDocs = await Booking.find({
+        garageSpace: { $in: spaceIds },
+        status: { $in: ["confirmed", "completed"] },
+        date: { $gte: ds, $lte: de }
+      });
+      last7.push({
+        label: d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
+        bookings: dayDocs.length,
+        income: dayDocs.reduce((s, b) => s + (b.totalPrice || 0), 0)
+      });
+    }
 
     res.json({
       message: "Garage Host Dashboard",
       data: {
         totalSpaces,
         occupiedSpaces,
-        monthlyRevenue: `৳${monthlyRevenue.toFixed(2)}`
+        monthlyRevenue: `৳${monthlyIncome.toFixed(2)}`,
+        stats: {
+          daily:   { bookings: dailyBookings,   income: dailyIncome },
+          weekly:  { bookings: weeklyBookings,  income: weeklyIncome },
+          monthly: { bookings: monthlyBookings, income: monthlyIncome },
+          last7Days: last7
+        }
       }
     });
   } catch (error) {

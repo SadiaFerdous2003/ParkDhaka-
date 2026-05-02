@@ -38,6 +38,9 @@ const paymentController = require("../controllers/paymentController");
 const subscriptionController = require("../controllers/subscriptionController");
 const ratingController = require("../controllers/ratingController");
 const panicController = require("../controllers/panicController");
+const adminController = require("../controllers/adminController");
+const complaintController = require("../controllers/complaintController");
+const userController = require("../controllers/userController");
 
 const { authMiddleware, roleMiddleware } = require("../middleware/auth");
 
@@ -45,6 +48,14 @@ const { authMiddleware, roleMiddleware } = require("../middleware/auth");
 router.post("/register", authController.register);
 router.post("/login", authController.login);
 router.put("/profile", authMiddleware, authController.updateProfile);
+
+// favorites
+router.get("/favorites", authMiddleware, roleMiddleware(["Driver"]), userController.getFavorites);
+router.post("/favorites/:garageId", authMiddleware, roleMiddleware(["Driver"]), userController.toggleFavorite);
+
+// trusted contact (used by panic section)
+router.get("/users/trusted-contact", authMiddleware, roleMiddleware(["Driver"]), userController.getTrustedContact);
+router.put("/users/trusted-contact", authMiddleware, roleMiddleware(["Driver"]), userController.updateTrustedContact);
 
 // existing parking endpoints
 router.get("/parkings", parkingController.getParkings);
@@ -89,6 +100,11 @@ router.delete(
 );
 
 // Get all garage spaces (for viewing all listed garages)
+router.get(
+  "/garages/nearby",
+  authMiddleware,
+  parkingController.getNearbyGarages
+);
 router.get(
   "/garage-spaces/all",
   authMiddleware,
@@ -183,11 +199,32 @@ router.put(
 
 // ── Payment endpoints ──
 router.post(
-  "/payments",
+  "/payments/process",
   authMiddleware,
   roleMiddleware(["Driver"]),
   paymentController.processPayment
 );
+router.get(
+  "/payments/history",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  paymentController.getHistory
+);
+router.get(
+  "/payments/receipt/:id",
+  authMiddleware,
+  paymentController.getReceipt
+);
+router.get(
+  "/payments/host",
+  authMiddleware,
+  roleMiddleware(["GarageHost"]),
+  paymentController.getHostPayments
+);
+
+// ── NID Verification (FR-20) ──
+router.get("/users/nid-status", authMiddleware, userController.getNidStatus);
+router.post("/users/verify-nid", authMiddleware, userController.verifyNid);
 
 // ── Subscription Pass (FR-11) ──
 router.post(
@@ -205,6 +242,7 @@ router.get(
 
 // ── Ratings (FR-21) ──
 router.post("/ratings", authMiddleware, ratingController.submitRating);
+router.get("/ratings/my-pending", authMiddleware, roleMiddleware(["Driver"]), userController.getMyPendingRatings);
 router.get("/garage-spaces/:garageId/ratings", authMiddleware, ratingController.getGarageRatings);
 router.get("/users/:userId/ratings", authMiddleware, ratingController.getUserRatings);
 
@@ -214,6 +252,13 @@ router.post(
   authMiddleware,
   roleMiddleware(["Driver"]),
   panicController.triggerPanic
+);
+// Admin panic logs — frontend calls /panic/logs
+router.get(
+  "/panic/logs",
+  authMiddleware,
+  roleMiddleware(["Admin"]),
+  panicController.getPanicLogs
 );
 router.get(
   "/panic",
@@ -228,5 +273,28 @@ router.put(
   panicController.resolvePanic
 );
 
+// ── Admin Dashboard Routes ──
+router.get("/admin/garages", authMiddleware, roleMiddleware(["Admin"]), adminController.getGarages);
+router.put("/admin/garages/:id/approve", authMiddleware, roleMiddleware(["Admin"]), adminController.updateGarageApprovalStatus);
+
+router.get("/admin/users", authMiddleware, roleMiddleware(["Admin"]), adminController.getUsers);
+router.put("/admin/users/:id/ban", authMiddleware, roleMiddleware(["Admin"]), adminController.toggleUserBan);
+
+router.get("/admin/bookings", authMiddleware, roleMiddleware(["Admin"]), adminController.getAllBookings);
+router.get("/admin/revenue", authMiddleware, roleMiddleware(["Admin"]), adminController.getRevenueAnalytics);
+router.get("/admin/ratings", authMiddleware, roleMiddleware(["Admin"]), adminController.getAggregatedRatings);
+router.get("/admin/complaints", authMiddleware, roleMiddleware(["Admin"]), adminController.getComplaints);
+router.put("/admin/complaints/:id/resolve", authMiddleware, roleMiddleware(["Admin"]), adminController.resolveComplaint);
+router.get("/admin/performance", authMiddleware, roleMiddleware(["Admin"]), adminController.getSystemPerformance);
+
+// ── User Complaints ──
+router.post("/complaints", authMiddleware, complaintController.submitComplaint);
+
+
+// ── Weather & Monsoon Alerts (FR-23) ──
+const weatherController = require("../controllers/weatherController");
+router.get("/weather/alerts", authMiddleware, weatherController.getActiveAlerts);
+router.post("/weather/alerts", authMiddleware, roleMiddleware(["Admin"]), weatherController.createAlert);
+router.patch("/weather/alerts/:id/deactivate", authMiddleware, roleMiddleware(["Admin"]), weatherController.deactivateAlert);
 
 module.exports = router;

@@ -1,4 +1,4 @@
-/* Premium UI Redesign for ParkDhaka */
+﻿/* Premium UI Redesign for ParkDhaka */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 * {
@@ -16,7 +16,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── Header ── */
+/* ΓöÇΓöÇ Header ΓöÇΓöÇ */
 /* Changed from sticky to relative to fix the overlap issue while keeping it at the top */
 header {
   position: relative; 
@@ -44,7 +44,7 @@ header h1 {
   margin: 0 auto;
 }
 
-/* ── Glassmorphism Globals ── */
+/* ΓöÇΓöÇ Glassmorphism Globals ΓöÇΓöÇ */
 .glass-panel {
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
@@ -54,7 +54,7 @@ header h1 {
   border-radius: 16px;
 }
 
-/* ── Auth Container ── */
+/* ΓöÇΓöÇ Auth Container ΓöÇΓöÇ */
 .auth-container {
   max-width: 480px;
   margin: 40px auto;
@@ -109,7 +109,7 @@ header h1 {
   background-color: #ffffff;
 }
 
-/* ── Buttons ── */
+/* ΓöÇΓöÇ Buttons ΓöÇΓöÇ */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -205,7 +205,7 @@ header h1 {
   text-decoration: underline;
 }
 
-/* ── Dashboard ── */
+/* ΓöÇΓöÇ Dashboard ΓöÇΓöÇ */
 .dashboard {
   max-width: 1200px;
   margin: 0 auto;
@@ -314,7 +314,7 @@ header h1 {
   margin-top: 8px;
 }
 
-/* ── Tables ── */
+/* ΓöÇΓöÇ Tables ΓöÇΓöÇ */
 .spaces-table {
   width: 100%;
   border-collapse: separate;
@@ -362,7 +362,7 @@ header h1 {
   margin-right: 8px;
 }
 
-/* ── Actions inside tables ── */
+/* ΓöÇΓöÇ Actions inside tables ΓöÇΓöÇ */
 .edit-space-btn,
 .delete-space-btn {
   padding: 6px 12px;
@@ -393,7 +393,7 @@ header h1 {
   background-color: #fbd5d5;
 }
 
-/* ── Form helpers ── */
+/* ΓöÇΓöÇ Form helpers ΓöÇΓöÇ */
 .helper-text {
   font-size: 12px;
   color: #829ab1;
@@ -401,7 +401,7 @@ header h1 {
   display: block;
 }
 
-/* ── Filter Bar ── */
+/* ΓöÇΓöÇ Filter Bar ΓöÇΓöÇ */
 .filter-bar {
   display: flex;
   flex-wrap: wrap;
@@ -455,7 +455,7 @@ header h1 {
   width: auto;
 }
 
-/* ── Garage Grid ── */
+/* ΓöÇΓöÇ Garage Grid ΓöÇΓöÇ */
 .garage-listing h2 {
   color: #102a43;
   margin-bottom: 8px;
@@ -476,12 +476,13 @@ header h1 {
 }
 
 .garage-card {
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.05);
   border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 8px 24px rgba(16, 42, 67, 0.06);
-  border: 1px solid rgba(255,255,255,0.7);
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   display: flex;
   flex-direction: column;
@@ -493,13 +494,19 @@ header h1 {
 }
 
 .garage-images {
+  position: relative;
   display: flex;
   flex-wrap: nowrap;
   overflow-x: auto;
   gap: 0;
-  background: #bcccdc;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.05);
   height: 180px;
   scrollbar-width: none;
+  border-radius: 16px 16px 0 0;
 }
 .garage-images::-webkit-scrollbar { display: none; }
 
@@ -541,7 +548,7 @@ header h1 {
   padding-top: 20px;
 }
 
-/* ── View on Map Button ── */
+/* ΓöÇΓöÇ View on Map Button ΓöÇΓöÇ */
 .btn-view-on-map {
   display: flex;
   align-items: center;
@@ -578,7 +585,7 @@ header h1 {
   border: 1px solid #e4e7eb;
 }
 
-/* ── Book Now Button ── */
+/* ΓöÇΓöÇ Book Now Button ΓöÇΓöÇ */
 .btn-book-now {
   display: block;
   width: 100%;
@@ -600,7 +607,7 @@ header h1 {
   box-shadow: 0 8px 20px rgba(0, 181, 105, 0.4);
 }
 
-/* ── Map Toggle ── */
+/* ΓöÇΓöÇ Map Toggle ΓöÇΓöÇ */
 .map-toggle-container {
   margin: 20px 0 30px;
   display: flex;
@@ -685,7 +692,7 @@ header h1 {
   box-shadow: 0 2px 6px rgba(240, 58, 71, 0.4);
 }
 
-/* ── Booking Modal ── */
+/* ΓöÇΓöÇ Booking Modal ΓöÇΓöÇ */
 .booking-modal-overlay {
   position: fixed;
   top: 0;
@@ -821,7 +828,7 @@ header h1 {
   margin-top: 10px;
 }
 
-/* ── My Bookings Page ── */
+/* ΓöÇΓöÇ My Bookings Page ΓöÇΓöÇ */
 .bookings-container {
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(12px);
@@ -923,7 +930,7 @@ header h1 {
   background: #bae6fd;
 }
 
-/* ── Status Label ── */
+/* ΓöÇΓöÇ Status Label ΓöÇΓöÇ */
 .status-label {
   padding: 4px 10px;
   border-radius: 20px;
@@ -935,7 +942,7 @@ header h1 {
 .status-Open { background: #d1fae5; color: #065f46; }
 .status-Closed { background: #fee2e2; color: #991b1b; }
 
-/* ── Notifications Panel ── */
+/* ΓöÇΓöÇ Notifications Panel ΓöÇΓöÇ */
 .notifications-section {
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(12px);
@@ -983,7 +990,7 @@ header h1 {
   color: #829ab1;
 }
 
-/* ── Responsive ── */
+/* ΓöÇΓöÇ Responsive ΓöÇΓöÇ */
 @media (max-width: 768px) {
   .dashboard-header {
     flex-direction: column;
@@ -1011,7 +1018,7 @@ header h1 {
   }
 }
 
-/* ── Waitlist Notification Banner ── */
+/* ΓöÇΓöÇ Waitlist Notification Banner ΓöÇΓöÇ */
 .waitlist-banner {
   background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%);
   border: 1px solid #ffc107;
@@ -1078,7 +1085,7 @@ header h1 {
   width: auto;
 }
 
-/* ── Toggle Switch (iOS style) ── */
+/* ΓöÇΓöÇ Toggle Switch (iOS style) ΓöÇΓöÇ */
 .switch {
   position: relative;
   display: inline-block;
@@ -1129,7 +1136,7 @@ input:checked + .slider:before {
   transform: translateX(26px);
 }
 
-/* ── Custom Leaflet Markers ── */
+/* ΓöÇΓöÇ Custom Leaflet Markers ΓöÇΓöÇ */
 .custom-marker {
   background: transparent;
 }
@@ -1169,7 +1176,7 @@ input:checked + .slider:before {
   font-size: 14px;
 }
 
-/* ── Miscellaneous Buttons ── */
+/* ΓöÇΓöÇ Miscellaneous Buttons ΓöÇΓöÇ */
 .btn-mark-read {
   padding: 6px 12px;
   font-size: 12px;
@@ -1194,7 +1201,7 @@ input:checked + .slider:before {
   font-style: italic;
 }
 
-/* ── Refresh Button ── */
+/* ΓöÇΓöÇ Refresh Button ΓöÇΓöÇ */
 .btn-refresh {
   margin-left: auto;
   padding: 8px 16px;
@@ -1217,7 +1224,7 @@ input:checked + .slider:before {
   cursor: not-allowed;
 }
 
-/* ── Favorites Feature ── */
+/* ΓöÇΓöÇ Favorites Feature ΓöÇΓöÇ */
 .btn-toggle-favorite {
   background: white;
   border: 1.5px solid #ff4757;
@@ -1292,9 +1299,9 @@ input:checked + .slider:before {
   grid-column: 1 / -1;
 }
 
-/* ══════════════════════════════════════
+/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
    Host Booking Statistics & Income Summary
-   ══════════════════════════════════════ */
+   ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */
 
 .host-stats-section {
   background: rgba(255, 255, 255, 0.9);
@@ -1306,7 +1313,7 @@ input:checked + .slider:before {
   border: 1px solid rgba(255, 255, 255, 0.7);
 }
 
-/* ── Period Summary Cards ── */
+/* ΓöÇΓöÇ Period Summary Cards ΓöÇΓöÇ */
 .stats-period-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -1399,7 +1406,7 @@ input:checked + .slider:before {
   margin-top: 8px;
 }
 
-/* ── Chart Tabs ── */
+/* ΓöÇΓöÇ Chart Tabs ΓöÇΓöÇ */
 .chart-tabs-container {
   background: #f8fbfd;
   border-radius: 16px;
@@ -1439,7 +1446,7 @@ input:checked + .slider:before {
   box-shadow: 0 4px 12px rgba(0, 181, 105, 0.3);
 }
 
-/* ── Chart Panel ── */
+/* ΓöÇΓöÇ Chart Panel ΓöÇΓöÇ */
 .chart-panel {
   display: flex;
   flex-direction: column;
@@ -1453,7 +1460,7 @@ input:checked + .slider:before {
   margin-bottom: 4px;
 }
 
-/* ── Bar Chart ── */
+/* ΓöÇΓöÇ Bar Chart ΓöÇΓöÇ */
 .bar-chart {
   display: flex;
   align-items: flex-end;
@@ -1562,35 +1569,9 @@ input:checked + .slider:before {
   white-space: nowrap;
 }
 
-/* ── Unread notification highlight ── */
+/* ΓöÇΓöÇ Unread notification highlight ΓöÇΓöÇ */
 .unread-notif {
   border-left: 4px solid #00b569 !important;
   background: rgba(0, 181, 105, 0.04);
 }
 
-/* ── Weather & Monsoon Alerts (FR-23) ── */
-.weather-alerts-container {
-  margin-top: -10px;
-  margin-bottom: 30px;
-  animation: slideDownFade 0.5s ease-out;
-}
-
-@keyframes slideDownFade {
-  from { transform: translateY(-20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-.weather-alert-card.severity-critical {
-  background: rgba(216, 43, 56, 0.05) !important;
-  border-left: 6px solid #d82b38 !important;
-}
-
-.weather-alert-card.severity-high {
-  background: rgba(246, 173, 85, 0.05) !important;
-  border-left: 6px solid #f6ad55 !important;
-}
-
-.weather-alert-card.severity-medium {
-  background: rgba(66, 153, 225, 0.05) !important;
-  border-left: 6px solid #4299e1 !important;
-}

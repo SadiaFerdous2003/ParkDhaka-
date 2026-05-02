@@ -10,10 +10,19 @@ const userSchema = new mongoose.Schema({
     enum: ["Driver","GarageHost","Admin"],
     default: "Driver"
   },
+  status: {
+    type: String,
+    enum: ["Active", "Banned"],
+    default: "Active"
+  },
   trustedContact: {
     name: { type: String },
+    email: { type: String },
     phone: { type: String }
   },
+  favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: "GarageSpace" }],
+  nidNumber: { type: String, default: "" },
+  isNidVerified: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
 

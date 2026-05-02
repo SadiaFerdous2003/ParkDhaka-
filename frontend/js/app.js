@@ -63,11 +63,27 @@ const App = (function () {
     if (isCollapsed) {
       mapWrapper.classList.remove("collapsed");
       toggleBtn.innerHTML = `<span class="toggle-icon">📍</span> Hide Nearby Map`;
-      setTimeout(() => {
+      
+      // Try to get GPS for better map centering
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const { latitude, longitude } = pos.coords;
+            if (mapToggleData && typeof initGaragesMap === 'function') {
+              initGaragesMap(mapToggleData.spaces, mapToggleData.userRole, latitude, longitude);
+            }
+          },
+          () => {
+            if (mapToggleData && typeof initGaragesMap === 'function') {
+              initGaragesMap(mapToggleData.spaces, mapToggleData.userRole);
+            }
+          }
+        );
+      } else {
         if (mapToggleData && typeof initGaragesMap === 'function') {
           initGaragesMap(mapToggleData.spaces, mapToggleData.userRole);
         }
-      }, 100);
+      }
     } else {
       mapWrapper.classList.add("collapsed");
       toggleBtn.innerHTML = `<span class="toggle-icon">📍</span> Show Nearby Garages Map`;
@@ -202,52 +218,43 @@ const App = (function () {
         const data = await response.json();
 
         if (role === "GarageHost") {
-          try {
-            const spacesRes = await fetch(`${API_BASE_URL}/garage-spaces`, {
-              method: "GET",
-              headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
-            });
-            let spaces = [];
-            if (spacesRes.ok) spaces = await spacesRes.json();
-            parkingView.renderGarageHostDashboard(data, spaces);
-            currentSpaces = spaces;
-            setupGarageHostListeners();
-            loadNotifications();
-            setTimeout(() => { if (typeof initLocationPicker === 'function') initLocationPicker(); }, 100);
-          } catch (err) {
-            console.error("Error loading garage spaces", err);
-            currentSpaces = [];
-            parkingView.renderGarageHostDashboard(data, []);
-            setupGarageHostListeners();
-            loadNotifications();
-            setTimeout(() => { if (typeof initLocationPicker === 'function') initLocationPicker(); }, 100);
-          }
+          // Hub: no spaces needed at this level
+          parkingView.renderGarageHostDashboard(data);
+          setupGarageHostListeners();
         } else if (role === "Driver") {
           let waitlistEntries = [];
+          let weatherHtml = "";
           try {
-            const wRes = await fetch(`${API_BASE_URL}/waitlist/my`, {
-              method: "GET",
-              headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
-            });
+            const [wRes, weatherRes] = await Promise.all([
+              fetch(`${API_BASE_URL}/waitlist/my`, {
+                headers: { "Authorization": `Bearer ${token}` }
+              }),
+              fetch(`${API_BASE_URL}/weather/alerts`, {
+                headers: { "Authorization": `Bearer ${token}` }
+              })
+            ]);
+            
             if (wRes.ok) waitlistEntries = await wRes.json();
-          } catch (e) { /* ignore */ }
+            if (weatherRes.ok) {
+              const alerts = await weatherRes.json();
+              weatherHtml = parkingView.renderWeatherAlerts(alerts);
+            }
+          } catch (e) { console.error("Weather fetch error:", e); }
+          
           parkingView.renderDriverDashboard(data, waitlistEntries);
-          // Load panic section after dashboard renders
-          loadPanicSection();
+          if (weatherHtml) {
+            const header = document.querySelector('.dashboard-header');
+            if (header) header.insertAdjacentHTML('afterend', weatherHtml);
+          }
+          setupDriverDashboardListeners();
+          setupWaitlistActions();
         } else if (role === "Admin") {
-          let panicLogs = [];
-          try {
-            const pRes = await fetch(`${API_BASE_URL}/panic`, {
-              method: "GET",
-              headers: { "Authorization": `Bearer ${token}` }
-            });
-            if (pRes.ok) panicLogs = await pRes.json();
-          } catch (e) { console.error(e); }
-          parkingView.renderAdminDashboard(data, panicLogs);
+          parkingView.renderAdminDashboard(data);
+          setupAdminDashboardListeners();
         }
 
         setupLogoutButton();
-        setupViewGaragesButton();
+        setupBackToDashboardListener();
         setupMyBookingsButton();
         setupMonthlyPassesButton();
         setupRatingsButton();
@@ -269,12 +276,24 @@ const App = (function () {
     if (logoutBtn) logoutBtn.addEventListener("click", logout);
   }
 
-  function setupViewGaragesButton() {
+  function setupBackToDashboardListener() {
     const viewGaragesBtn = document.getElementById("view-garages-btn");
     if (viewGaragesBtn) viewGaragesBtn.addEventListener("click", loadGarageListing);
 
-    const backBtn = document.getElementById("back-to-dashboard-btn");
-    if (backBtn) backBtn.addEventListener("click", () => loadDashboard(currentUser.role));
+    const backIds = ["back-to-dashboard-btn", "back-to-hub"];
+    backIds.forEach(id => {
+      const btn = document.getElementById(id);
+      if (btn) {
+        btn.addEventListener("click", () => {
+          const role = currentUser?.role || JSON.parse(localStorage.getItem("user"))?.role;
+          if (role) {
+            loadDashboard(role);
+          } else {
+            showAuthPage();
+          }
+        });
+      }
+    });
   }
 
   function setupMyBookingsButton() {
@@ -312,9 +331,7 @@ const App = (function () {
       if (response.ok) {
         const data = await response.json();
         parkingView.renderSubscriptionPasses(data);
-        setupLogoutButton();
-        const backBtn = document.getElementById("back-to-dashboard-btn");
-        if (backBtn) backBtn.addEventListener("click", () => loadDashboard(currentUser.role));
+        setupBackToDashboardListener();
         const purchaseBtn = document.getElementById("purchase-pass-btn");
         if (purchaseBtn) purchaseBtn.addEventListener("click", handlePurchasePass);
       } else if (response.status === 401) {
@@ -368,33 +385,101 @@ const App = (function () {
     });
   }
 
+  let liveUpdateInterval = null;
+
   async function loadGarageListing() {
     const token = localStorage.getItem("token");
     if (!token) { showAuthPage(); return; }
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/garage-spaces/all`, {
-        method: "GET",
-        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
-      });
+    // Clear any existing interval
+    if (liveUpdateInterval) clearInterval(liveUpdateInterval);
 
-      if (response.ok) {
-        const spaces = await response.json();
-        parkingView.renderGarageListing(spaces, currentUser?.role);
-        setupViewGaragesButton();
+    // Helper to fetch and render
+    const fetchAndRender = async (lat = null, lng = null) => {
+      try {
+        // ALWAYS fetch ALL spaces for the main listing grid
+        const allRes = await fetch(`${API_BASE_URL}/garage-spaces/all`, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+
+        let allSpaces = [];
+        if (allRes.ok) {
+          allSpaces = await allRes.json();
+          // Correct image paths for all spaces
+          const backendUrl = API_BASE_URL.replace("/api", "");
+          allSpaces = allSpaces.map(s => ({
+            ...s,
+            images: (s.images || []).map(img => img.startsWith("/") ? `${backendUrl}${img}` : img)
+          }));
+        }
+
+        // Initialize mapSpaces with allSpaces as fallback
+        let mapSpaces = allSpaces;
+
+        // If coordinates available, fetch NEARBY spaces specifically for the map
+        if (lat && lng) {
+          try {
+            const nearbyRes = await fetch(`${API_BASE_URL}/garages/nearby?lat=${lat}&lng=${lng}`, {
+              method: "GET",
+              headers: { "Authorization": `Bearer ${token}` }
+            });
+            if (nearbyRes.ok) {
+              const nearbySpaces = await nearbyRes.json();
+              // Correct image paths for nearby spaces
+              const backendUrl = API_BASE_URL.replace("/api", "");
+              mapSpaces = nearbySpaces.map(s => ({
+                ...s,
+                images: (s.images || []).map(img => img.startsWith("/") ? `${backendUrl}${img}` : img)
+              }));
+            }
+          } catch (e) {
+            console.error("Nearby fetch error:", e);
+          }
+        }
+
+        // 1. Render the main list with ALL spaces
+        parkingView.renderGarageListing(allSpaces, currentUser?.role);
+
+        // 2. Setup standard UI listeners
+        setupBackToDashboardListener();
         setupLogoutButton();
         setupBookNowButtons();
-        setupFilterBar(spaces);
-        setupMapToggleAndLiveUpdate(spaces, currentUser?.role);
+        setupFilterBar(allSpaces);
+        setupFavoriteToggleButtons();
+
+        // 3. Initialize/Update the Map with MAP spaces (Nearby if available)
+        setupMapToggleAndLiveUpdate(mapSpaces, currentUser?.role);
         if (typeof window.setMapToggleData === 'function') {
-          window.setMapToggleData(spaces, currentUser?.role);
+          window.setMapToggleData(mapSpaces, currentUser?.role);
         }
-        initGaragesMap(spaces, currentUser?.role);
-      } else if (response.status === 401) {
-        logout();
+        initGaragesMap(mapSpaces, currentUser?.role, lat, lng);
+
+        return allSpaces;
+      } catch (e) { 
+        console.error("Fetch error:", e); 
+        parkingView.showError("listing", "Failed to load garage spaces.");
       }
-    } catch (error) {
-      console.error("Error loading garage listing:", error);
+    };
+
+    // Try to get GPS location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords;
+          await fetchAndRender(latitude, longitude);
+          // Set up live update interval (every 30 seconds)
+          liveUpdateInterval = setInterval(() => fetchAndRender(latitude, longitude), 30000);
+        },
+        async () => {
+          // Fallback if denied
+          await fetchAndRender();
+          liveUpdateInterval = setInterval(() => fetchAndRender(), 30000);
+        }
+      );
+    } else {
+      await fetchAndRender();
+      liveUpdateInterval = setInterval(() => fetchAndRender(), 30000);
     }
   }
 
@@ -413,6 +498,8 @@ const App = (function () {
       const minPrice = minPriceInput?.value || "";
       const maxPrice = maxPriceInput?.value || "";
       parkingView.filterAndRenderGarages(vehicleType, minPrice, maxPrice, currentUser?.role);
+      if (currentUser?.role === "Driver") setupBackToDashboardListener();
+      else if (currentUser?.role === "Admin") setupBackToDashboardListener();
       setTimeout(() => setupFilterBar(spaces), 150);
     });
 
@@ -421,43 +508,48 @@ const App = (function () {
       if (minPriceInput) minPriceInput.value = "";
       if (maxPriceInput) maxPriceInput.value = "";
       parkingView.renderGarageListing(spaces, currentUser?.role);
+      if (currentUser?.role === "Driver") setupBackToDashboardListener();
+      else if (currentUser?.role === "Admin") setupBackToDashboardListener();
       setTimeout(() => setupFilterBar(spaces), 150);
     });
   }
 
   // ── Map Toggle & Live Update Setup (FR-4) ──
   function setupMapToggleAndLiveUpdate(spaces, userRole) {
-    const toggleBtn = document.getElementById("toggle-map-btn");
-    const mapWrapper = document.getElementById("map-container-wrapper");
     const refreshBtn = document.getElementById("refresh-map-btn");
-
-    if (toggleBtn && mapWrapper) {
-      toggleBtn.addEventListener("click", () => {
-        const isCollapsed = mapWrapper.classList.contains("collapsed");
-        if (isCollapsed) {
-          mapWrapper.classList.remove("collapsed");
-          toggleBtn.innerHTML = `<span class="toggle-icon">📍</span> Hide Nearby Map`;
-          setTimeout(() => { if (typeof initGaragesMap === 'function') initGaragesMap(spaces, userRole); }, 100);
-        } else {
-          mapWrapper.classList.add("collapsed");
-          toggleBtn.innerHTML = `<span class="toggle-icon">📍</span> Show Nearby Garages Map`;
-        }
-      });
-    }
 
     if (refreshBtn) {
       refreshBtn.addEventListener("click", async () => {
-        refreshBtn.textContent = "⏳ Updating...";
         refreshBtn.disabled = true;
+        refreshBtn.textContent = "🔄 Updating...";
+        const token = localStorage.getItem("token");
         try {
-          const token = localStorage.getItem("token");
-          const response = await fetch(`${API_BASE_URL}/garage-spaces`, {
-            headers: token ? { "Authorization": `Bearer ${token}` } : {}
+          const res = await fetch(`${API_BASE_URL}/garage-spaces/all`, {
+            headers: { "Authorization": `Bearer ${token}` }
           });
-          if (response.ok) {
-            const updatedSpaces = await response.json();
-            if (typeof initGaragesMap === 'function') initGaragesMap(updatedSpaces, userRole);
-            refreshBtn.textContent = "✓ Updated!";
+          if (res.ok) {
+            let updatedSpaces = await res.json();
+            
+            // Fix image paths
+            const backendUrl = API_BASE_URL.replace("/api", "");
+            updatedSpaces = updatedSpaces.map(s => ({
+              ...s,
+              images: (s.images || []).map(img => img.startsWith("/") ? `${backendUrl}${img}` : img)
+            }));
+
+            if (typeof window.setMapToggleData === 'function') window.setMapToggleData(updatedSpaces, userRole);
+            
+            // Re-init map with current view's location if available
+            if (navigator.geolocation) {
+              navigator.geolocation.getCurrentPosition(
+                (pos) => initGaragesMap(updatedSpaces, userRole, pos.coords.latitude, pos.coords.longitude),
+                () => initGaragesMap(updatedSpaces, userRole)
+              );
+            } else {
+              initGaragesMap(updatedSpaces, userRole);
+            }
+
+            refreshBtn.textContent = "✅ Updated";
             setTimeout(() => { refreshBtn.textContent = "🔄 Live Update"; refreshBtn.disabled = false; }, 2000);
           }
         } catch (error) {
@@ -469,6 +561,24 @@ const App = (function () {
     }
   }
 
+  function setupFavoriteToggleButtons() {
+    document.querySelectorAll(".btn-toggle-favorite").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const garageId = btn.dataset.id;
+        await handleToggleFavorite(garageId);
+        // Toggle icon state
+        if (btn.innerText === "❤️") {
+          btn.innerText = "🖤";
+          btn.title = "Removed from Favorites";
+        } else {
+          btn.innerText = "❤️";
+          btn.title = "Added to Favorites";
+        }
+      });
+    });
+  }
+
   function logout() {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -477,24 +587,34 @@ const App = (function () {
   }
 
   // ── Map Integration (FR-4) ──
-  function initGaragesMap(spaces, userRole) {
+  function initGaragesMap(spaces, userRole, userLat = null, userLng = null) {
     const mapContainer = document.getElementById("garages-map");
     if (!mapContainer) return;
     mapContainer.innerHTML = '';
     if (googleMapsLoaded && google && google.maps) {
-      initGoogleMaps(spaces, userRole, mapContainer);
+      initGoogleMaps(spaces, userRole, mapContainer, userLat, userLng);
     } else {
-      initLeafletMap(spaces, userRole, mapContainer);
+      initLeafletMap(spaces, userRole, mapContainer, userLat, userLng);
     }
   }
 
-  function initGoogleMaps(spaces, userRole, mapContainer) {
+  function initGoogleMaps(spaces, userRole, mapContainer, userLat, userLng) {
     const dhaka = { lat: 23.8103, lng: 90.4125 };
+    const center = (userLat && userLng) ? { lat: userLat, lng: userLng } : dhaka;
     const map = new google.maps.Map(mapContainer, {
-      zoom: 13, center: dhaka, mapTypeControl: false, streetViewControl: false, fullscreenControl: true
+      zoom: 14, center: center, mapTypeControl: false, streetViewControl: false, fullscreenControl: true
     });
     const bounds = new google.maps.LatLngBounds();
     let hasMarkers = false;
+
+    // User location marker
+    if (userLat && userLng) {
+      new google.maps.Marker({
+        position: center, map, title: "You are here",
+        icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 6, fillColor: '#4285F4', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }
+      });
+      bounds.extend(center);
+    }
 
     spaces.forEach(s => {
       if (s.location && s.location.lat && s.location.lng) {
@@ -505,7 +625,7 @@ const App = (function () {
         bounds.extend(position);
 
         const hours = s.availableHours ? `${s.availableHours.start} - ${s.availableHours.end}` : "Not specified";
-        const isAvailable = s.isAvailable !== false;
+        const isAvailable = s.status === "Open";
         const navLink = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
         const btnHtml = userRole === "Driver"
           ? `<button class="btn-book-now-map" data-space-id="${s._id}" style="margin-top: 8px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; width: 100%;">📅 Book Now</button>`
@@ -523,13 +643,9 @@ const App = (function () {
         `;
 
         const infoWindow = new google.maps.InfoWindow({ content: contentString });
-        const markerIcon = {
-          path: google.maps.SymbolPath.CIRCLE, scale: 12,
-          fillColor: isAvailable ? '#28a745' : '#dc3545', fillOpacity: 1,
-          strokeColor: '#ffffff', strokeWeight: 2
-        };
         const marker = new google.maps.Marker({
-          position, map, title: `৳${s.price}/hour`, icon: markerIcon, animation: google.maps.Animation.DROP
+          position, map, title: `৳${s.price}/hour`, 
+          icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: isAvailable ? '#28a745' : '#dc3545', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }
         });
         marker.addListener("click", () => {
           infoWindow.open(map, marker);
@@ -542,47 +658,93 @@ const App = (function () {
     });
 
     if (hasMarkers) map.fitBounds(bounds, { padding: 50 });
-    else map.setCenter(dhaka);
   }
 
-  function initLeafletMap(spaces, userRole, mapContainer) {
+  let leafletMap = null;
+
+  function initLeafletMap(spaces, userRole, mapContainer, userLat, userLng) {
+    const mapDiv = document.getElementById("garages-map");
+    if (!mapDiv) return;
+
+    // ── Force Leaflet CSS injection to ensure alignment ──
+    if (!document.getElementById("leaflet-css-fix")) {
+      const link = document.createElement("link");
+      link.id = "leaflet-css-fix";
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(link);
+    }
+
+    // ── Force Container Height ──
+    mapDiv.style.height = "400px";
+    mapDiv.style.width = "100%";
+
+    if (leafletMap) {
+      leafletMap.remove();
+      leafletMap = null;
+    }
+    mapDiv.innerHTML = ""; 
+
     setTimeout(() => {
-      const map = L.map("garages-map").setView([23.8103, 90.4125], 13);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
-      setTimeout(() => map.invalidateSize(), 150);
+      const dhakaLat = 23.8103, dhakaLng = 90.4125;
+      const lat = (userLat && !isNaN(userLat)) ? parseFloat(userLat) : dhakaLat;
+      const lng = (userLng && !isNaN(userLng)) ? parseFloat(userLng) : dhakaLng;
+      const center = [lat, lng];
+
+      leafletMap = L.map("garages-map", {
+        worldCopyJump: false,
+        zoomControl: true
+      }).setView(center, 15);
+
+      // ── Use CartoDB Tiles (Cleaner and more reliable) ──
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        attribution: '©OpenStreetMap ©CartoDB',
+        subdomains: 'abcd',
+        maxZoom: 20
+      }).addTo(leafletMap);
 
       let hasMarkers = false;
       const bounds = L.latLngBounds();
+
+      // User location marker (Blue Pulsing)
+      if (userLat && userLng) {
+        L.circleMarker(center, { radius: 8, fillColor: "#4285F4", color: "#fff", weight: 2, fillOpacity: 1 }).addTo(leafletMap).bindPopup("You are here");
+        bounds.extend(center);
+      }
 
       const availableIcon = L.divIcon({ className: 'custom-marker available-marker', html: '<div class="marker-pin available"></div>', iconSize: [30, 42], iconAnchor: [15, 42], popupAnchor: [0, -35] });
       const bookedIcon = L.divIcon({ className: 'custom-marker booked-marker', html: '<div class="marker-pin booked"></div>', iconSize: [30, 42], iconAnchor: [15, 42], popupAnchor: [0, -35] });
 
       spaces.forEach(s => {
         if (s.location && s.location.lat && s.location.lng) {
-          const lat = parseFloat(s.location.lat);
-          const lng = parseFloat(s.location.lng);
+          const sLat = parseFloat(s.location.lat);
+          const sLng = parseFloat(s.location.lng);
+          if (isNaN(sLat) || isNaN(sLng)) return;
+
           hasMarkers = true;
-          bounds.extend([lat, lng]);
+          bounds.extend([sLat, sLng]);
 
           const hours = s.availableHours ? `${s.availableHours.start} - ${s.availableHours.end}` : "Not specified";
-          const isAvailable = s.isAvailable !== false;
-          const navLink = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+          const isAvailable = s.status === "Open";
+          const navLink = `https://www.google.com/maps/dir/?api=1&destination=${sLat},${sLng}`;
           const btnHtml = userRole === "Driver"
-            ? `<button class="btn-book-now-map" data-space-id="${s._id}" style="margin-top: 5px; padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">📅 Book Now</button>`
+            ? `<button class="btn-book-now-map" data-space-id="${s._id}" style="margin-top: 5px; padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; width: 100%;">📅 Book Now</button>`
             : '';
 
           const popupContent = `
-            <div style="min-width: 180px;">
-              <strong style="font-size: 14px;">৳${s.price}/hour</strong>
-              <span style="color: ${isAvailable ? '#28a745' : '#dc3545'}; font-size: 12px;">● ${isAvailable ? 'Available' : 'Booked'}</span><br/>
-              ${s.location.address ? `<small>${s.location.address}</small><br/>` : ''}
+            <div style="min-width: 180px; padding: 5px;">
+              <strong style="font-size: 15px;">৳${s.price}/hour</strong>
+              <span style="color: ${isAvailable ? '#28a745' : '#dc3545'}; font-size: 12px; margin-left: 5px;">● ${isAvailable ? 'Available' : 'Booked'}</span><br/>
+              <div style="margin: 5px 0; font-size: 13px; color: #666;">${s.location.address || "No address"}</div>
               <small>Hours: ${hours}</small><br/>
-              <a href="${navLink}" target="_blank" style="display: inline-block; margin-top: 5px; padding: 4px 8px; background: #4285f4; color: white; text-decoration: none; border-radius: 4px; font-size: 12px;">📍 Navigate</a>
-              ${btnHtml}
+              <div style="display: flex; gap: 5px; margin-top: 8px;">
+                <a href="${navLink}" target="_blank" style="flex: 1; padding: 6px; background: #4285f4; color: white; text-decoration: none; border-radius: 4px; font-size: 11px; text-align: center;">📍 Route</a>
+                ${btnHtml ? `<div style="flex: 1;">${btnHtml}</div>` : ''}
+              </div>
             </div>
           `;
 
-          const marker = L.marker([lat, lng], { icon: isAvailable ? availableIcon : bookedIcon }).addTo(map);
+          const marker = L.marker([sLat, sLng], { icon: isAvailable ? availableIcon : bookedIcon }).addTo(leafletMap);
           marker.bindPopup(popupContent);
           marker.on('popupopen', () => {
             const btn = document.querySelector(`.btn-book-now-map[data-space-id="${s._id}"]`);
@@ -591,8 +753,24 @@ const App = (function () {
         }
       });
 
-      if (hasMarkers) map.fitBounds(bounds, { padding: [30, 30] });
-    }, 100);
+      if (hasMarkers) {
+        leafletMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+      } else {
+        leafletMap.setView(center, 15);
+      }
+
+      // ── Critical: Rapid-fire alignment sequence ──
+      // This forces Leaflet to 'wake up' and realize the container is now visible
+      const forceRefresh = () => {
+        if (leafletMap) leafletMap.invalidateSize();
+      };
+      
+      forceRefresh();
+      setTimeout(forceRefresh, 100);
+      setTimeout(forceRefresh, 300);
+      setTimeout(forceRefresh, 600);
+      setTimeout(forceRefresh, 1000);
+    }, 600);
   }
 
   // ── Location Picker Map for Garage Host (FR-4) ──
@@ -654,26 +832,112 @@ const App = (function () {
   }
 
   // ── Garage Host Helpers ──
-  function setupGarageHostListeners() {
+  async function loadAddGarageSpaceForm() {
+    // FR-20: Check NID requirement for hosts
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/nid-status`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (!data.isNidVerified) {
+          alert("NID Verification Required: You must verify your identity before listing a garage space.");
+          loadNidVerification();
+          return;
+        }
+      }
+    } catch (err) { console.error("NID check failed:", err); }
+
+    parkingView.renderAddGarageSpaceForm();
     const addBtn = document.getElementById("add-space-btn");
     if (addBtn) addBtn.addEventListener("click", handleAddSpace);
+    
+    const backBtn = document.getElementById("back-to-dashboard-btn");
+    if (backBtn) backBtn.addEventListener("click", () => loadDashboard(currentUser.role));
+    
+    setupLogoutButton();
+    setTimeout(() => { if (typeof initLocationPicker === 'function') initLocationPicker(); }, 100);
+  }
 
-    function hostSpacesClickHandler(e) {
-      const target = e.target;
-      if (target.matches('.edit-space-btn')) handleEditSpace(target.dataset.id);
-      else if (target.matches('.delete-space-btn')) handleDeleteSpace(target.dataset.id);
+  function setupGarageHostListeners() {
+    // ── Hub nav cards ──
+    const navMap = {
+      "host-nav-my-garages":   loadHostManageSpaces,
+      "host-nav-add-garage":   loadAddGarageSpaceForm,
+      "host-nav-statistics":   loadHostStats,
+      "host-nav-notifications":loadHostNotifications,
+      "host-nav-ratings":      loadMyRatings,
+      "host-nav-browse":       loadGarageListing,
+      "host-nav-earnings":     loadHostEarnings,
+      "host-nav-nid":          loadNidVerification
+    };
+    for (const [id, handler] of Object.entries(navMap)) {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener("click", handler);
     }
 
+    // Global delegate for edit/delete/toggle (added once)
     if (!hostListenerAdded) {
-      document.addEventListener('click', hostSpacesClickHandler);
-      document.addEventListener('change', async (e) => {
-        if (e.target.matches('.toggle-availability')) handleToggleAvailability(e.target);
+      document.addEventListener("click", (e) => {
+        if (e.target.matches(".edit-space-btn"))   handleEditSpace(e.target.dataset.id);
+        if (e.target.matches(".delete-space-btn")) handleDeleteSpace(e.target.dataset.id);
+        if (e.target.matches(".btn-mark-read"))    handleMarkNotificationAsRead(e.target.dataset.id);
       });
-      document.addEventListener('click', (e) => {
-        if (e.target.matches('.btn-mark-read')) handleMarkNotificationAsRead(e.target.dataset.id);
+      document.addEventListener("change", async (e) => {
+        if (e.target.matches(".toggle-availability")) handleToggleAvailability(e.target);
       });
       hostListenerAdded = true;
     }
+  }
+
+  // ── Host: My Garages page ──
+  async function loadHostManageSpaces() {
+    const token = localStorage.getItem("token");
+    if (!token) { showAuthPage(); return; }
+    try {
+      const res = await fetch(`${API_BASE_URL}/garage-spaces`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const spaces = res.ok ? await res.json() : [];
+      currentSpaces = spaces;
+      parkingView.renderHostManageSpaces(spaces);
+      setupBackToDashboardListener();
+      setupLogoutButton();
+      // re-attach edit/delete since we replaced innerHTML
+    } catch (err) { console.error(err); }
+  }
+
+  // ── Host: Statistics page ──
+  async function loadHostStats() {
+    const token = localStorage.getItem("token");
+    if (!token) { showAuthPage(); return; }
+    try {
+      const res = await fetch(`${API_BASE_URL}/dashboard/garage-host`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        parkingView.renderHostStats(data);
+        setupBackToDashboardListener();
+        setupLogoutButton();
+      }
+    } catch (err) { console.error(err); }
+  }
+
+  // ── Host: Notifications page ──
+  async function loadHostNotifications() {
+    const token = localStorage.getItem("token");
+    if (!token) { showAuthPage(); return; }
+    try {
+      const res = await fetch(`${API_BASE_URL}/notifications`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const notifications = res.ok ? await res.json() : [];
+      parkingView.renderHostNotifications(notifications);
+      setupBackToDashboardListener();
+      setupLogoutButton();
+    } catch (err) { console.error(err); }
   }
 
   async function loadNotifications() {
@@ -895,10 +1159,16 @@ const App = (function () {
           const data = await res.json();
 
           if (res.ok) {
-            if (successEl) { successEl.textContent = "✅ Booking confirmed!"; successEl.style.display = "block"; }
+            if (successEl) { successEl.textContent = "✅ Booking confirmed! Redirecting to payment..."; successEl.style.display = "block"; }
             confirmBtn.disabled = true;
-            confirmBtn.textContent = "Booked!";
-            setTimeout(() => { if (overlay) overlay.remove(); loadDashboard(currentUser.role); }, 1500);
+            confirmBtn.textContent = "Confirmed!";
+            
+            setTimeout(() => {
+              if (overlay) overlay.remove();
+              // Show payment modal immediately
+              parkingView.renderPaymentModal(data._id, data.totalPrice);
+              setupPaymentModalListeners(data._id, data.totalPrice);
+            }, 1500);
           } else if (res.status === 409) {
             if (errorEl) { errorEl.textContent = data.message; errorEl.style.display = "block"; }
             if (waitlistBtn) {
@@ -945,8 +1215,7 @@ const App = (function () {
         const bookings = await res.json();
         currentBookings = bookings;
         parkingView.renderMyBookings(bookings);
-        setupLogoutButton();
-        setupViewGaragesButton();
+        setupBackToDashboardListener();
         setupBookingActions();
       }
     } catch (err) { console.error("Error loading bookings:", err); }
@@ -981,6 +1250,70 @@ const App = (function () {
         setupRescheduleModalListeners(booking);
       });
     });
+
+    document.querySelectorAll(".btn-pay-booking").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const bookingId = btn.dataset.id;
+        const amount = btn.dataset.amount;
+        parkingView.renderPaymentModal(bookingId, amount);
+        setupPaymentModalListeners(bookingId, amount);
+      });
+    });
+  }
+
+  function setupPaymentModalListeners(bookingId, amount) {
+    const overlay = document.getElementById("payment-modal-overlay");
+    const closeBtn = document.getElementById("payment-modal-close");
+    const payBtn = document.getElementById("pay-now-btn");
+    const errorEl = document.getElementById("payment-error");
+    const successEl = document.getElementById("payment-success");
+
+    if (closeBtn) closeBtn.onclick = () => overlay.remove();
+    if (overlay) overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+    if (payBtn) {
+      payBtn.onclick = async () => {
+        const method = document.querySelector('input[name="payment-method"]:checked')?.value;
+        if (!method) {
+          errorEl.textContent = "Please select a payment method";
+          errorEl.style.display = "block";
+          return;
+        }
+
+        payBtn.disabled = true;
+        payBtn.textContent = "Processing...";
+        errorEl.style.display = "none";
+
+        const token = localStorage.getItem("token");
+        try {
+          const res = await fetch(`${API_BASE_URL}/payments/process`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ bookingId, amount, paymentMethod: method })
+          });
+          const data = await res.json();
+          if (res.ok) {
+            successEl.textContent = `Payment Successful via ${method}! Transaction ID: ${data.payment.transactionId}`;
+            successEl.style.display = "block";
+            setTimeout(() => {
+              overlay.remove();
+              loadMyBookings();
+            }, 2000);
+          } else {
+            errorEl.textContent = data.message || "Payment failed";
+            errorEl.style.display = "block";
+            payBtn.disabled = false;
+            payBtn.textContent = "Proceed to Pay";
+          }
+        } catch (err) {
+          console.error(err);
+          errorEl.textContent = "Network error occurred";
+          errorEl.style.display = "block";
+          payBtn.disabled = false;
+          payBtn.textContent = "Proceed to Pay";
+        }
+      };
+    }
   }
 
   function setupRescheduleModalListeners(booking) {
@@ -1046,9 +1379,7 @@ const App = (function () {
       if (res.ok) {
         const pending = await res.json();
         parkingView.renderMyRatings(pending, currentUser.role);
-        setupLogoutButton();
-        const backBtn = document.getElementById("back-to-dashboard-btn");
-        if (backBtn) backBtn.addEventListener("click", () => loadDashboard(currentUser.role));
+        setupBackToDashboardListener();
         setupRateButtons();
       }
     } catch (err) { console.error(err); }
@@ -1134,11 +1465,9 @@ const App = (function () {
         headers: { "Authorization": `Bearer ${token}` }
       });
       const contact = res.ok ? await res.json() : {};
-      const panicContainer = document.getElementById("panic-container");
-      if (panicContainer) {
-        panicContainer.innerHTML = parkingView.renderPanicSection(contact);
-        setupPanicListeners();
-      }
+      parkingView.renderPanicSection(contact);
+      setupBackToDashboardListener();
+      setupPanicListeners();
     } catch (err) { console.error(err); }
   }
 
@@ -1219,8 +1548,7 @@ const App = (function () {
         const logs = await res.json();
         parkingView.renderPanicLogs(logs);
         setupLogoutButton();
-        const backBtn = document.getElementById("back-to-dashboard-btn");
-        if (backBtn) backBtn.addEventListener("click", () => loadDashboard(currentUser.role));
+        setupBackToDashboardListener();
         setupResolvePanicButtons();
       }
     } catch (err) { console.error(err); }
@@ -1243,6 +1571,327 @@ const App = (function () {
         } catch (err) { console.error(err); }
       });
     });
+  }
+
+  // ── Favorite Garages ──
+  async function loadFavoriteGarages() {
+    const token = localStorage.getItem("token");
+    if (!token) { showAuthPage(); return; }
+    try {
+      const res = await fetch(`${API_BASE_URL}/favorites`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const favorites = await res.json();
+        parkingView.renderFavoriteGarages(favorites);
+        setupBackToDashboardListener();
+        setupLogoutButton();
+        setupFavoriteActions();
+      } else {
+        const data = await res.json();
+        alert(data.message || "Failed to load favorites");
+      }
+    } catch (err) {
+      console.error("Error loading favorites:", err);
+      alert("Network error. Please try again.");
+    }
+  }
+
+  function setupFavoriteActions() {
+    // Quick rebook
+    document.querySelectorAll(".btn-quick-rebook").forEach(btn => {
+      btn.addEventListener("click", () => handleBookNow(btn.dataset.spaceId));
+    });
+
+    // Remove favorite
+    document.querySelectorAll(".btn-remove-favorite").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        await handleToggleFavorite(btn.dataset.id);
+        loadFavoriteGarages();
+      });
+    });
+  }
+
+  async function handleToggleFavorite(garageId) {
+    const token = localStorage.getItem("token");
+    if (!token) { alert("Please login to save favorites"); return; }
+    try {
+      const res = await fetch(`${API_BASE_URL}/favorites/${garageId}`, {
+        method: "POST",
+        headers: { 
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        console.log("Favorite toggled:", data.message);
+      }
+    } catch (err) { console.error("Error toggling favorite:", err); }
+  }
+
+  // ── Driver Dashboard Functions ──
+  function setupDriverDashboardListeners() {
+    const map = {
+      "nav-find-parking": loadGarageListing,
+      "nav-my-bookings": loadMyBookings,
+      "nav-monthly-passes": loadSubscriptionPasses,
+      "nav-my-ratings": loadMyRatings,
+      "nav-emergency-panic": loadPanicSection,
+      "nav-favorite-garages": loadFavoriteGarages,
+      "nav-payment-history":  loadPaymentHistory,
+      "nav-nid-verify":       loadNidVerification
+    };
+
+    for (const [id, handler] of Object.entries(map)) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener("click", (e) => {
+          console.log(`Clicked on ${id}`);
+          handler();
+        });
+      } else {
+        console.warn(`Element with id ${id} not found`);
+      }
+    }
+  }
+
+  // ── Admin Dashboard Functions ──
+  function setupAdminDashboardListeners() {
+    const map = {
+      "nav-garage-approvals": loadAdminGarageApprovals,
+      "nav-user-management": loadAdminUsers,
+      "nav-booking-monitoring": loadAdminBookings,
+      "nav-revenue-analytics": loadAdminRevenue,
+      "nav-aggregated-ratings": loadAdminRatings,
+      "nav-complaints": loadAdminComplaints,
+      "nav-system-performance": loadAdminPerformance
+    };
+
+    for (const [id, handler] of Object.entries(map)) {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener("click", handler);
+    }
+  }
+
+  async function loadAdminGarageApprovals() {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/garages`, { headers: { "Authorization": `Bearer ${token}` } });
+      if (res.ok) {
+        const garages = await res.json();
+        parkingView.renderAdminGarageApprovals(garages);
+        setupBackToDashboardListener();
+        document.querySelectorAll(".btn-approve-garage").forEach(btn => btn.addEventListener("click", () => handleUpdateGarageStatus(btn.dataset.id, "Approved")));
+        document.querySelectorAll(".btn-reject-garage").forEach(btn => btn.addEventListener("click", () => handleUpdateGarageStatus(btn.dataset.id, "Rejected")));
+      }
+    } catch (e) { console.error(e); }
+  }
+
+  async function handleUpdateGarageStatus(id, status) {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/garages/${id}/approve`, {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ approvalStatus: status })
+      });
+      if (res.ok) loadAdminGarageApprovals();
+    } catch (e) { console.error(e); }
+  }
+
+  async function loadAdminUsers() {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/users`, { headers: { "Authorization": `Bearer ${token}` } });
+      if (res.ok) {
+        const users = await res.json();
+        parkingView.renderAdminUsers(users);
+        setupBackToDashboardListener();
+        document.querySelectorAll(".btn-toggle-ban").forEach(btn => btn.addEventListener("click", () => handleToggleBan(btn.dataset.id)));
+      }
+    } catch (e) { console.error(e); }
+  }
+
+  async function handleToggleBan(id) {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/users/${id}/ban`, { method: "PUT", headers: { "Authorization": `Bearer ${token}` } });
+      if (res.ok) loadAdminUsers();
+    } catch (e) { console.error(e); }
+  }
+
+  async function loadAdminBookings() {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/bookings`, { headers: { "Authorization": `Bearer ${token}` } });
+      if (res.ok) {
+        const bookings = await res.json();
+        parkingView.renderAdminBookings(bookings);
+        setupBackToDashboardListener();
+      }
+    } catch (e) { console.error(e); }
+  }
+
+  async function loadAdminRevenue() {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/revenue`, { headers: { "Authorization": `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        parkingView.renderAdminRevenue(data);
+        setupBackToDashboardListener();
+      }
+    } catch (e) { console.error(e); }
+  }
+
+  async function loadAdminRatings() {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/ratings`, { headers: { "Authorization": `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        parkingView.renderAdminRatings(data);
+        setupBackToDashboardListener();
+      }
+    } catch (e) { console.error(e); }
+  }
+
+  async function loadAdminComplaints() {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/complaints`, { headers: { "Authorization": `Bearer ${token}` } });
+      if (res.ok) {
+        const complaints = await res.json();
+        parkingView.renderAdminComplaints(complaints);
+        setupBackToDashboardListener();
+        document.querySelectorAll(".btn-resolve-complaint").forEach(btn => btn.addEventListener("click", async () => {
+          const resolutionNotes = prompt("Enter resolution notes:");
+          if (resolutionNotes) {
+            await fetch(`${API_BASE_URL}/admin/complaints/${btn.dataset.id}/resolve`, {
+              method: "PUT",
+              headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ resolutionNotes })
+            });
+            loadAdminComplaints();
+          }
+        }));
+      }
+    } catch (e) { console.error(e); }
+  }
+
+  async function loadAdminPerformance() {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/performance`, { headers: { "Authorization": `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        parkingView.renderAdminPerformance(data);
+        setupBackToDashboardListener();
+      }
+    } catch (e) { console.error(e); }
+  }
+
+  // ── FR-14/15: Payment & Earnings Logic ──
+  async function loadPaymentHistory() {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/payments/history`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        parkingView.renderPaymentHistory(data);
+        setupBackToDashboardListener();
+        
+        document.querySelectorAll(".btn-view-receipt").forEach(btn => {
+          btn.addEventListener("click", async (e) => {
+            const paymentId = e.target.dataset.id;
+            const pres = await fetch(`${API_BASE_URL}/payments/receipt/${paymentId}`, {
+              headers: { "Authorization": `Bearer ${token}` }
+            });
+            if (pres.ok) {
+              const payment = await pres.json();
+              parkingView.renderReceipt(payment);
+              
+              document.getElementById("receipt-modal-close").onclick = () => {
+                document.getElementById("receipt-modal-overlay").remove();
+              };
+              document.getElementById("print-receipt-btn").onclick = () => {
+                window.print();
+              };
+            }
+          });
+        });
+      }
+    } catch (err) { console.error("Error loading payment history:", err); }
+  }
+
+  async function loadHostEarnings() {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/payments/host`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        parkingView.renderHostEarnings(data);
+        setupBackToDashboardListener();
+        
+        const withdrawBtn = document.getElementById("withdraw-funds-btn");
+        if (withdrawBtn) {
+          withdrawBtn.onclick = () => {
+            alert("Withdrawal request submitted! Our team will process it within 24 hours.");
+          };
+        }
+      }
+    } catch (err) { console.error("Error loading host earnings:", err); }
+  }
+
+  // ── FR-20: NID Verification Logic ──
+  async function loadNidVerification() {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/nid-status`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        parkingView.renderNidVerification(data);
+        setupBackToDashboardListener();
+        setupLogoutButton();
+        
+        const submitBtn = document.getElementById("submit-nid-btn");
+        if (submitBtn) submitBtn.addEventListener("click", handleVerifyNid);
+      }
+    } catch (err) { console.error("Error loading NID status:", err); }
+  }
+
+  async function handleVerifyNid() {
+    const nidInput = document.getElementById("nid-number-input");
+    const errorEl = document.getElementById("nid-error");
+    const nid = nidInput.value.trim();
+
+    if (!nid || nid.length < 10) {
+      if (errorEl) { errorEl.textContent = "Please enter a valid 10-digit NID number."; errorEl.style.display = "block"; }
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/verify-nid`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ nidNumber: nid })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        loadNidVerification(); // Refresh view
+      } else {
+        if (errorEl) { errorEl.textContent = data.message || "Verification failed"; errorEl.style.display = "block"; }
+      }
+    } catch (err) { console.error("NID verification error:", err); }
   }
 
   // ── Init ──

@@ -116,3 +116,35 @@ exports.getMyPendingRatings = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// ── FR-20: NID Verification Logic ──
+exports.getNidStatus = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const user = await User.findById(userId).select("nidNumber isNidVerified");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json({
+      nidNumber: user.nidNumber || "",
+      isNidVerified: user.isNidVerified
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.verifyNid = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { nidNumber } = req.body;
+    if (!nidNumber || nidNumber.length < 10) {
+      return res.status(400).json({ message: "Invalid NID format" });
+    }
+    const user = await User.findById(userId);
+    user.nidNumber = nidNumber;
+    user.isNidVerified = true;
+    await user.save();
+    res.json({ message: "NID Verified successfully", isNidVerified: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

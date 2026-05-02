@@ -28,7 +28,9 @@ const paymentSchema = new mongoose.Schema({
   timestamp: { 
     type: Date, 
     default: Date.now 
-  }
+  },
+  paymentMethod: { type: String, default: "Digital" },
+  transactionId: { type: String, default: "" }
 });
 
 module.exports = mongoose.model("Payment", paymentSchema);

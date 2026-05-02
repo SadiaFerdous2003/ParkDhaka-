@@ -101,6 +101,11 @@ router.delete(
 
 // Get all garage spaces (for viewing all listed garages)
 router.get(
+  "/garages/nearby",
+  authMiddleware,
+  parkingController.getNearbyGarages
+);
+router.get(
   "/garage-spaces/all",
   authMiddleware,
   parkingController.getAllGarageSpaces
@@ -194,11 +199,32 @@ router.put(
 
 // ── Payment endpoints ──
 router.post(
-  "/payments",
+  "/payments/process",
   authMiddleware,
   roleMiddleware(["Driver"]),
   paymentController.processPayment
 );
+router.get(
+  "/payments/history",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  paymentController.getHistory
+);
+router.get(
+  "/payments/receipt/:id",
+  authMiddleware,
+  paymentController.getReceipt
+);
+router.get(
+  "/payments/host",
+  authMiddleware,
+  roleMiddleware(["GarageHost"]),
+  paymentController.getHostPayments
+);
+
+// ── NID Verification (FR-20) ──
+router.get("/users/nid-status", authMiddleware, userController.getNidStatus);
+router.post("/users/verify-nid", authMiddleware, userController.verifyNid);
 
 // ── Subscription Pass (FR-11) ──
 router.post(
@@ -264,5 +290,11 @@ router.get("/admin/performance", authMiddleware, roleMiddleware(["Admin"]), admi
 // ── User Complaints ──
 router.post("/complaints", authMiddleware, complaintController.submitComplaint);
 
+
+// ── Weather & Monsoon Alerts (FR-23) ──
+const weatherController = require("../controllers/weatherController");
+router.get("/weather/alerts", authMiddleware, weatherController.getActiveAlerts);
+router.post("/weather/alerts", authMiddleware, roleMiddleware(["Admin"]), weatherController.createAlert);
+router.patch("/weather/alerts/:id/deactivate", authMiddleware, roleMiddleware(["Admin"]), weatherController.deactivateAlert);
 
 module.exports = router;

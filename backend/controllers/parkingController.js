@@ -147,7 +147,17 @@ exports.getAllGarageSpaces = async (req, res) => {
     const spaces = await GarageSpace.find(query)
       .populate('host', 'name email')
       .sort({ createdAt: -1 });
-    res.json(spaces);
+
+    // ── Fix: Ensure coordinates are valid and default to Dhaka ──
+    const sanitizedSpaces = spaces.map(s => {
+      const space = s.toObject();
+      if (!space.location) space.location = {};
+      if (!space.location.lat || isNaN(space.location.lat)) space.location.lat = 23.8103;
+      if (!space.location.lng || isNaN(space.location.lng)) space.location.lng = 90.4125;
+      return space;
+    });
+
+    res.json(sanitizedSpaces);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -176,5 +186,48 @@ exports.toggleGarageStatus = async (req, res) => {
     res.json(updated);
   } catch (err) {
     res.status(400).json({ message: err.message });
+  }
+};
+
+// ── FR-4: Get Nearby Garages (GPS-based) ──
+exports.getNearbyGarages = async (req, res) => {
+  try {
+    const { lat, lng, radius = 5000 } = req.query; // Default radius 5km
+    if (!lat || !lng) {
+      return res.status(400).json({ message: "GPS coordinates (lat, lng) are required." });
+    }
+
+    const userLat = parseFloat(lat);
+    const userLng = parseFloat(lng);
+
+    // Find all approved and open spaces
+    const query = { status: "Open", approvalStatus: { $nin: ["Pending", "Rejected"] } };
+    const allSpaces = await GarageSpace.find(query).populate('host', 'name email');
+
+    // Simple Haversine distance filtering
+    const calculateDistance = (lat1, lon1, lat2, lon2) => {
+      const R = 6371; // km
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    };
+
+    const nearbySpaces = allSpaces.filter(s => {
+      if (!s.location || !s.location.lat || !s.location.lng) return false;
+      const dist = calculateDistance(userLat, userLng, s.location.lat, s.location.lng);
+      s.distance = dist; // Attach distance for sorting
+      return dist <= (radius / 1000); // convert radius to km
+    });
+
+    // Sort by proximity
+    nearbySpaces.sort((a, b) => a.distance - b.distance);
+
+    res.json(nearbySpaces);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };

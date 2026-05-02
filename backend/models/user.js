@@ -21,6 +21,8 @@ const userSchema = new mongoose.Schema({
     phone: { type: String }
   },
   favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: "GarageSpace" }],
+  nidNumber: { type: String, default: "" },
+  isNidVerified: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
 

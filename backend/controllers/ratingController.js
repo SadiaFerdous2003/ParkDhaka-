@@ -3,22 +3,47 @@ const Booking = require("../models/booking");
 
 exports.submitRating = async (req, res) => {
   try {
-    const { bookingId, toUserId, toGarageId, rating, comment } = req.body;
-    
-    const booking = await Booking.findById(bookingId);
+    const { bookingId, toUserId, toGarageId, rating, review, comment } = req.body;
+    const booking = await Booking.findById(bookingId).populate("garageSpace").populate("driver", "name");
     if (!booking) return res.status(404).json({ message: "Booking not found" });
 
+    const fromUserId = req.user.userId;
+    const userRole = req.user.role;
+
     // Check if rating already exists from this user for this booking
-    const existing = await Rating.findOne({ booking: bookingId, fromUser: req.user._id });
+    const existing = await Rating.findOne({ booking: bookingId, fromUser: fromUserId });
     if (existing) return res.status(400).json({ message: "Already rated" });
+
+    let targetUser = null;
+    let targetGarage = null;
+
+    if (userRole === "Driver") {
+      if (booking.driver.toString() !== fromUserId) {
+        return res.status(403).json({ message: "Unauthorized to rate this booking" });
+      }
+      targetGarage = toGarageId || booking.garageSpace;
+      if (!targetGarage) {
+        return res.status(400).json({ message: "Garage target is required for driver ratings" });
+      }
+    } else if (userRole === "GarageHost") {
+      if (booking.garageSpace.host.toString() !== fromUserId) {
+        return res.status(403).json({ message: "Unauthorized to rate this booking" });
+      }
+      targetUser = toUserId || booking.driver;
+      if (!targetUser) {
+        return res.status(400).json({ message: "Driver target is required for host ratings" });
+      }
+    } else {
+      return res.status(403).json({ message: "Only drivers and garage hosts may submit ratings" });
+    }
 
     const newRating = new Rating({
       booking: bookingId,
-      fromUser: req.user._id,
-      toUser: toUserId,
-      toGarage: toGarageId,
+      fromUser: fromUserId,
+      toUser: targetUser,
+      toGarage: targetGarage,
       rating,
-      comment
+      comment: review || comment || ""
     });
 
     await newRating.save();

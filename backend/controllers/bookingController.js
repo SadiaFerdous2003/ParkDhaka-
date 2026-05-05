@@ -96,6 +96,35 @@ exports.createBooking = async (req, res) => {
   }
 };
 
+const calculateOverstay = (booking) => {
+  if (!booking || booking.status !== "confirmed" || !booking.endTime) {
+    return { overstayFine: 0, overstayHours: 0, overstayMinutes: 0, overstayDue: false };
+  }
+
+  const endDate = new Date(booking.date);
+  const [eh, em] = booking.endTime.split(":").map(Number);
+  endDate.setHours(eh, em, 0, 0);
+  const now = new Date();
+  const diffMs = now.getTime() - endDate.getTime();
+
+  if (diffMs <= 0) {
+    return { overstayFine: 0, overstayHours: 0, overstayMinutes: 0, overstayDue: false };
+  }
+
+  const minutesLate = Math.ceil(diffMs / 60000);
+  const hoursLate = Math.ceil(minutesLate / 60);
+  const hourlyRate = booking.garageSpace?.price || 0;
+  const fineRatePerHour = Math.max(Math.ceil(hourlyRate * 1.5), 100);
+  const overstayFine = hoursLate * fineRatePerHour;
+
+  return {
+    overstayFine,
+    overstayHours: hoursLate,
+    overstayMinutes: minutesLate,
+    overstayDue: overstayFine > 0
+  };
+};
+
 // GET /api/bookings/my — driver's own bookings
 exports.getMyBookings = async (req, res) => {
   try {
@@ -103,7 +132,17 @@ exports.getMyBookings = async (req, res) => {
     const bookings = await Booking.find({ driver: driverId })
       .populate("garageSpace")
       .sort({ date: -1 });
-    res.json(bookings);
+
+    const mapped = bookings.map((booking) => {
+      const bookingObj = booking.toObject({ virtuals: true });
+      const overstay = calculateOverstay(bookingObj);
+      return {
+        ...bookingObj,
+        ...overstay
+      };
+    });
+
+    res.json(mapped);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

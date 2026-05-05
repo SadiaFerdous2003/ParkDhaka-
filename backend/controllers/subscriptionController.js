@@ -4,11 +4,6 @@ const Payment = require("../models/payment");
 exports.purchasePass = async (req, res) => {
   try {
     const userId = req.user.userId;
-    // Check if user already has an active subscription
-    const existingSub = await Subscription.findOne({ user: userId, status: "active", endDate: { $gt: new Date() } });
-    if (existingSub) {
-      return res.status(400).json({ message: "You already have an active subscription." });
-    }
 
     const price = 5000; // Fixed monthly pass price (e.g. 5000 BDT)
     const startDate = new Date();
@@ -45,14 +40,41 @@ exports.purchasePass = async (req, res) => {
 exports.getMySubscription = async (req, res) => {
   try {
     const userId = req.user.userId;
-    // Find active subscription that hasn't expired
-    const subscription = await Subscription.findOne({ user: userId, status: "active", endDate: { $gt: new Date() } });
+    // Find all active subscriptions that haven't expired
+    const subscriptions = await Subscription.find({ 
+      user: userId, 
+      status: "active", 
+      endDate: { $gt: new Date() } 
+    }).sort({ startDate: -1 }); // Sort by start date descending
     
+    res.status(200).json({ subscriptions });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
+exports.cancelSubscription = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const subscriptionId = req.params.id;
+
+    // Find the subscription and ensure it belongs to the user
+    const subscription = await Subscription.findOne({ 
+      _id: subscriptionId, 
+      user: userId, 
+      status: "active" 
+    });
+
     if (!subscription) {
-      return res.status(200).json({ hasSubscription: false });
+      return res.status(404).json({ message: "Active subscription not found." });
     }
 
-    res.status(200).json({ hasSubscription: true, subscription });
+    // Update status to cancelled
+    subscription.status = "cancelled";
+    await subscription.save();
+
+    res.status(200).json({ message: "Subscription cancelled successfully", subscription });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server Error" });

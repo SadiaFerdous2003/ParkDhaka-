@@ -889,6 +889,7 @@ header h1 {
 
 .booking-card-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   padding: 0 24px 24px;
 }

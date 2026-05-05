@@ -8,6 +8,7 @@ const App = (function () {
   let currentSpaces = []; // store fetched spaces for host
   let currentBookings = []; // store fetched bookings for driver
   let currentPendingRatings = []; // store pending rating bookings for driver or host
+  let currentReceivedRatings = []; // store ratings received by garage hosts from drivers
   let hostListenerAdded = false;
 
   // ── Initialize ──
@@ -1573,17 +1574,31 @@ const App = (function () {
     
     const token = localStorage.getItem("token");
     if (!token) { showAuthPage(); return; }
+
     try {
-      const res = await fetch(`${API_BASE_URL}/ratings/my-pending`, {
+      const pendingRes = await fetch(`${API_BASE_URL}/ratings/my-pending`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
-      if (res.ok) {
-        const pending = await res.json();
-        currentPendingRatings = pending;
-        parkingView.renderMyRatings(pending, currentUser.role);
-        setupBackToDashboardListener();
-        setupRateButtons();
+      let pending = [];
+      if (pendingRes.ok) {
+        pending = await pendingRes.json();
       }
+
+      let received = [];
+      if (currentUser.role === "GarageHost") {
+        const receivedRes = await fetch(`${API_BASE_URL}/ratings/my-received`, {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (receivedRes.ok) {
+          received = await receivedRes.json();
+        }
+      }
+
+      currentPendingRatings = pending;
+      currentReceivedRatings = received;
+      parkingView.renderMyRatings(pending, currentUser.role, received);
+      setupBackToDashboardListener();
+      setupRateButtons();
     } catch (err) { console.error(err); }
   }
 

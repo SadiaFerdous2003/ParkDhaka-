@@ -249,6 +249,7 @@ router.put(
 // ── Ratings (FR-21) ──
 router.post("/ratings", authMiddleware, roleMiddleware(["Driver", "GarageHost"]), ratingController.submitRating);
 router.get("/ratings/my-pending", authMiddleware, roleMiddleware(["Driver", "GarageHost"]), userController.getMyPendingRatings);
+router.get("/ratings/my-received", authMiddleware, roleMiddleware(["GarageHost"]), ratingController.getMyReceivedRatings);
 router.get("/garage-spaces/:garageId/ratings", authMiddleware, ratingController.getGarageRatings);
 router.get("/users/:userId/ratings", authMiddleware, ratingController.getUserRatings);
 

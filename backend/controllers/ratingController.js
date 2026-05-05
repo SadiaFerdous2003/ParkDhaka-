@@ -18,21 +18,21 @@ exports.submitRating = async (req, res) => {
     let targetGarage = null;
 
     if (userRole === "Driver") {
-      if (booking.driver.toString() !== fromUserId) {
+      if (!booking.driver || booking.driver._id.toString() !== fromUserId) {
         return res.status(403).json({ message: "Unauthorized to rate this booking" });
       }
-      targetGarage = toGarageId || booking.garageSpace;
-      if (!targetGarage) {
-        return res.status(400).json({ message: "Garage target is required for driver ratings" });
+      if (!booking.garageSpace) {
+        return res.status(400).json({ message: "Garage target is missing from booking data" });
       }
+      targetGarage = booking.garageSpace._id || booking.garageSpace;
     } else if (userRole === "GarageHost") {
-      if (booking.garageSpace.host.toString() !== fromUserId) {
+      if (!booking.garageSpace || !booking.garageSpace.host || booking.garageSpace.host.toString() !== fromUserId) {
         return res.status(403).json({ message: "Unauthorized to rate this booking" });
       }
-      targetUser = toUserId || booking.driver;
-      if (!targetUser) {
-        return res.status(400).json({ message: "Driver target is required for host ratings" });
+      if (!booking.driver) {
+        return res.status(400).json({ message: "Driver target is missing from booking data" });
       }
+      targetUser = booking.driver._id || booking.driver;
     } else {
       return res.status(403).json({ message: "Only drivers and garage hosts may submit ratings" });
     }
@@ -56,6 +56,29 @@ exports.submitRating = async (req, res) => {
 exports.getGarageRatings = async (req, res) => {
   try {
     const ratings = await Rating.find({ toGarage: req.params.garageId }).populate("fromUser", "name");
+    res.json(ratings);
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+exports.getMyReceivedRatings = async (req, res) => {
+  try {
+    const garageSpaces = await GarageSpace.find({ host: req.user.userId }).select("_id");
+    const garageIds = garageSpaces.map((space) => space._id);
+    if (garageIds.length === 0) return res.json([]);
+
+    const ratings = await Rating.find({ toGarage: { $in: garageIds } })
+      .populate("fromUser", "name")
+      .populate({
+        path: "booking",
+        populate: [
+          { path: "garageSpace", select: "location price" },
+          { path: "driver", select: "name" }
+        ]
+      })
+      .sort({ createdAt: -1 });
+
     res.json(ratings);
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });

@@ -1310,12 +1310,12 @@ const ParkingView = (function () {
   }
 
   // ── FR-21: My Ratings Page ──
-  function renderMyRatings(pendingBookings, userRole) {
-    let html = "";
+  function renderMyRatings(pendingBookings, userRole, receivedRatings = []) {
+    let pendingHtml = "";
     if (!pendingBookings || pendingBookings.length === 0) {
-      html = "<p class='no-bookings'>No completed bookings to rate yet.</p>";
+      pendingHtml = "<p class='no-bookings'>No completed bookings to rate yet.</p>";
     } else {
-      html = `<div class="bookings-list">
+      pendingHtml = `<div class="bookings-list">
         ${pendingBookings.map(b => {
         const dateStr = new Date(b.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
         const target = userRole === "Driver"
@@ -1341,20 +1341,66 @@ const ParkingView = (function () {
       </div>`;
     }
 
+    let receivedHtml = "";
+    if (userRole === "GarageHost") {
+      if (!receivedRatings || receivedRatings.length === 0) {
+        receivedHtml = "<p class='no-bookings'>No driver ratings received yet.</p>";
+      } else {
+        receivedHtml = `<div class="ratings-received">
+          <h2>Ratings Received from Drivers</h2>
+          <div class="ratings-list">
+            ${receivedRatings.map(r => {
+            const dateStr = r.booking && r.booking.date
+              ? new Date(r.booking.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+              : new Date(r.createdAt || Date.now()).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+            const driverName = r.fromUser?.name || "Driver";
+            const garageAddress = r.booking?.garageSpace?.location?.address || "Your garage";
+            const stars = Array.from({ length: 5 }, (_, idx) => idx < r.rating ? "★" : "☆").join("");
+            return `
+              <div class="booking-card">
+                <div class="booking-card-header">
+                  <span class="booking-date">${dateStr}</span>
+                  <span class="booking-status status-completed">RECEIVED</span>
+                </div>
+                <div class="booking-card-body">
+                  <p><strong>From:</strong> ${driverName}</p>
+                  <p><strong>Garage:</strong> ${garageAddress}</p>
+                  <p><strong>Rating:</strong> <span class="rating-stars">${stars}</span></p>
+                  <p><strong>Review:</strong> ${r.comment || "No review provided."}</p>
+                </div>
+              </div>
+            `;
+          }).join("")}
+          </div>
+        </div>`;
+      }
+    }
+
     const pageTitle = userRole === "Driver"
       ? "⭐ Rate Your Garage Experiences"
       : "⭐ Rate Your Drivers";
 
+    const hostHeader = userRole === "GarageHost"
+      ? "<p style=\"margin-top:8px; color:#555;\">Here are the driver ratings you have received and the completed bookings waiting for your review.</p>"
+      : "";
+
     containerEl.innerHTML = `
       <div class="dashboard">
         <header class="dashboard-header">
-          <h1>${pageTitle}</h1>
+          <div>
+            <h1>${pageTitle}</h1>
+            ${hostHeader}
+          </div>
           <div class="header-actions">
             <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
-        <div class="bookings-container">${html}</div>
+        ${userRole === "GarageHost" ? `<div class="dashboard-section">${receivedHtml}</div>` : ""}
+        <div class="dashboard-section">
+          <h2>${userRole === "Driver" ? "Bookings to Rate" : "Bookings to Rate Drivers"}</h2>
+          ${pendingHtml}
+        </div>
       </div>
     `;
   }

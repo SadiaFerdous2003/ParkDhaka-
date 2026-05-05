@@ -100,10 +100,17 @@ exports.getMyPendingRatings = async (req, res) => {
 
     let bookings = [];
 
+    const bookingFilter = {
+      $or: [
+        { status: "completed" },
+        { paymentStatus: "paid" }
+      ]
+    };
+
     if (userRole === "Driver") {
       bookings = await Booking.find({
         driver: userId,
-        status: "completed"
+        ...bookingFilter
       })
         .populate("garageSpace")
         .populate("driver", "name");
@@ -113,7 +120,7 @@ exports.getMyPendingRatings = async (req, res) => {
 
       bookings = await Booking.find({
         garageSpace: { $in: spaceIds },
-        status: "completed"
+        ...bookingFilter
       })
         .populate("garageSpace")
         .populate("driver", "name");

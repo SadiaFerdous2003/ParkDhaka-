@@ -100,6 +100,9 @@ const App = (function () {
   };
 
   function showAuthPage() {
+    // Stop any running live-update interval
+    stopLiveUpdate();
+    
     parkingView.renderAuthPage();
     setupAuthEventListeners();
   }
@@ -202,6 +205,9 @@ const App = (function () {
 
   // ── Dashboard ──
   async function loadDashboard(role) {
+    // Stop any running live-update interval
+    stopLiveUpdate();
+    
     const token = localStorage.getItem("token");
     if (!token) { showAuthPage(); return; }
 
@@ -324,6 +330,9 @@ const App = (function () {
   }
 
   async function loadSubscriptionPasses() {
+    // Stop any running live-update interval
+    stopLiveUpdate();
+    
     const token = localStorage.getItem("token");
     if (!token) { showAuthPage(); return; }
 
@@ -606,6 +615,9 @@ const App = (function () {
   }
 
   function logout() {
+    // Stop any running live-update interval
+    stopLiveUpdate();
+    
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     currentUser = null;
@@ -1049,6 +1061,19 @@ const App = (function () {
         res = await fetch(`${API_BASE_URL}/garage-spaces`, { method: "POST", headers: { "Authorization": `Bearer ${token}` }, body: formData });
       } else if (hasUrls) {
         const images = urlValue.split(",").map(s => s.trim()).filter(Boolean);
+        // Validate image URLs
+        const invalidUrls = images.filter(url => {
+          try {
+            const parsed = new URL(url);
+            return !/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(parsed.pathname) && !parsed.hostname.includes('i.imgur.com');
+          } catch {
+            return true;
+          }
+        });
+        if (invalidUrls.length > 0) {
+          if (errorEl) errorEl.textContent = "Invalid image URLs. Please use direct image links ending with .jpg, .png, etc., or from i.imgur.com";
+          return;
+        }
         res = await fetch(`${API_BASE_URL}/garage-spaces`, {
           method: "POST",
           headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
@@ -1240,6 +1265,9 @@ const App = (function () {
 
   // ── My Bookings (FR-7 / FR-8) ──
   async function loadMyBookings() {
+    // Stop any running live-update interval
+    stopLiveUpdate();
+    
     const token = localStorage.getItem("token");
     if (!token) { showAuthPage(); return; }
     try {
@@ -1406,6 +1434,9 @@ const App = (function () {
 
   // ── FR-21: Ratings ──
   async function loadMyRatings() {
+    // Stop any running live-update interval
+    stopLiveUpdate();
+    
     const token = localStorage.getItem("token");
     if (!token) { showAuthPage(); return; }
     try {
@@ -1575,6 +1606,9 @@ const App = (function () {
 
   // ── FR-22: Admin Panic Logs ──
   async function loadPanicLogs() {
+    // Stop any running live-update interval
+    stopLiveUpdate();
+    
     const token = localStorage.getItem("token");
     try {
       const res = await fetch(`${API_BASE_URL}/panic/logs`, {

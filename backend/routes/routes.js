@@ -204,6 +204,12 @@ router.post(
   roleMiddleware(["Driver"]),
   paymentController.processPayment
 );
+router.post(
+  "/payments/confirm-cash",
+  authMiddleware,
+  roleMiddleware(["GarageHost"]),
+  paymentController.confirmCashPayment
+);
 router.get(
   "/payments/history",
   authMiddleware,
@@ -220,6 +226,18 @@ router.get(
   authMiddleware,
   roleMiddleware(["GarageHost"]),
   paymentController.getHostPayments
+);
+router.post(
+  "/payments/withdraw",
+  authMiddleware,
+  roleMiddleware(["GarageHost"]),
+  paymentController.requestWithdrawal
+);
+router.get(
+  "/payments/withdrawals",
+  authMiddleware,
+  roleMiddleware(["GarageHost"]),
+  paymentController.getHostWithdrawals
 );
 
 // ── NID Verification (FR-20) ──
@@ -293,6 +311,8 @@ router.get("/admin/ratings", authMiddleware, roleMiddleware(["Admin"]), adminCon
 router.get("/admin/complaints", authMiddleware, roleMiddleware(["Admin"]), adminController.getComplaints);
 router.put("/admin/complaints/:id/resolve", authMiddleware, roleMiddleware(["Admin"]), adminController.resolveComplaint);
 router.get("/admin/performance", authMiddleware, roleMiddleware(["Admin"]), adminController.getSystemPerformance);
+router.get("/admin/withdrawals", authMiddleware, roleMiddleware(["Admin"]), adminController.getWithdrawals);
+router.put("/admin/withdrawals/:id", authMiddleware, roleMiddleware(["Admin"]), adminController.updateWithdrawalStatus);
 
 // ── User Complaints ──
 router.post("/complaints", authMiddleware, complaintController.submitComplaint);

@@ -3,6 +3,7 @@ const User = require("../models/user");
 const Booking = require("../models/booking");
 const Rating = require("../models/rating");
 const Complaint = require("../models/complaint");
+const Withdrawal = require("../models/withdrawal");
 
 // ── Garage Approvals ──
 exports.getGarages = async (req, res) => {
@@ -168,6 +169,41 @@ exports.getSystemPerformance = async (req, res) => {
     };
 
     res.json(performanceData);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ── Withdrawal Management ──
+exports.getWithdrawals = async (req, res) => {
+  try {
+    const withdrawals = await Withdrawal.find()
+      .populate("host", "name email")
+      .sort({ createdAt: -1 });
+    res.json(withdrawals);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.updateWithdrawalStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, adminNotes } = req.body;
+
+    if (!["Approved", "Rejected"].includes(status)) {
+      return res.status(400).json({ message: "Invalid status" });
+    }
+
+    const withdrawal = await Withdrawal.findById(id);
+    if (!withdrawal) return res.status(404).json({ message: "Withdrawal request not found" });
+
+    withdrawal.status = status;
+    withdrawal.adminNotes = adminNotes || withdrawal.adminNotes;
+    withdrawal.processedAt = Date.now();
+    await withdrawal.save();
+
+    res.json(withdrawal);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

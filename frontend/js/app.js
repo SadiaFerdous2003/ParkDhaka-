@@ -41,6 +41,8 @@ const App = (function () {
     } else {
       showAuthPage();
     }
+
+    setupGlobalListeners();
   }
 
   // ── Load Google Maps API ──
@@ -946,6 +948,7 @@ const App = (function () {
   function setupGarageHostListeners() {
     // ── Hub nav cards ──
     const navMap = {
+      "host-nav-bookings":     loadHostBookings,
       "host-nav-my-garages":   loadHostManageSpaces,
       "host-nav-add-garage":   loadAddGarageSpaceForm,
       "host-nav-statistics":   loadHostStats,
@@ -966,13 +969,57 @@ const App = (function () {
       document.addEventListener("click", (e) => {
         if (e.target.matches(".edit-space-btn"))   handleEditSpace(e.target.dataset.id);
         if (e.target.matches(".delete-space-btn")) handleDeleteSpace(e.target.dataset.id);
-        if (e.target.matches(".btn-mark-read"))    handleMarkNotificationAsRead(e.target.dataset.id);
       });
       document.addEventListener("change", async (e) => {
         if (e.target.matches(".toggle-availability")) handleToggleAvailability(e.target);
       });
       hostListenerAdded = true;
     }
+  }
+
+  function setupGlobalListeners() {
+    // Add listeners that should exist regardless of view
+    document.addEventListener("click", (e) => {
+      if (e.target.matches(".btn-mark-read")) handleMarkNotificationAsRead(e.target.dataset.id);
+    });
+  }
+
+  // ── Host: Bookings/Reservations page ──
+  async function loadHostBookings() {
+    stopLiveUpdate();
+    const token = localStorage.getItem("token");
+    if (!token) { showAuthPage(); return; }
+    try {
+      const res = await fetch(`${API_BASE_URL}/bookings/host`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const bookings = res.ok ? await res.json() : [];
+      parkingView.renderHostBookings(bookings);
+      setupBackToDashboardListener();
+      setupLogoutButton();
+
+      document.querySelectorAll(".btn-confirm-cash").forEach(btn => {
+        btn.addEventListener("click", () => handleConfirmCashPayment(btn.dataset.id));
+      });
+    } catch (err) { console.error(err); }
+  }
+
+  async function handleConfirmCashPayment(bookingId) {
+    if (!confirm("Are you sure you want to mark this booking as PAID in cash?")) return;
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/payments/confirm-cash`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId })
+      });
+      if (res.ok) {
+        loadHostBookings();
+      } else {
+        const data = await res.json();
+        alert(data.message || "Failed to confirm payment");
+      }
+    } catch (err) { console.error(err); }
   }
 
   // ── Host: My Garages page ──
@@ -1154,7 +1201,13 @@ const App = (function () {
     const token = localStorage.getItem("token");
     try {
       const res = await fetch(`${API_BASE_URL}/notifications/${id}/read`, { method: "PUT", headers: { "Authorization": `Bearer ${token}` } });
-      if (res.ok) loadNotifications();
+      if (res.ok) {
+        if (currentUser?.role === "GarageHost") {
+          loadHostNotifications();
+        } else {
+          loadNotifications();
+        }
+      }
     } catch (err) { console.error(err); }
   }
 
@@ -1903,12 +1956,17 @@ const App = (function () {
       "nav-revenue-analytics": loadAdminRevenue,
       "nav-aggregated-ratings": loadAdminRatings,
       "nav-complaints": loadAdminComplaints,
-      "nav-system-performance": loadAdminPerformance
+      "nav-system-performance": loadAdminPerformance,
+      "nav-withdrawal-approvals": loadAdminWithdrawals
     };
 
     for (const [id, handler] of Object.entries(map)) {
       const el = document.getElementById(id);
-      if (el) el.addEventListener("click", handler);
+      if (el) {
+        el.addEventListener("click", handler);
+      } else {
+        console.warn(`Admin nav element not found: ${id}`);
+      }
     }
   }
 
@@ -2068,22 +2126,110 @@ const App = (function () {
   async function loadHostEarnings() {
     const token = localStorage.getItem("token");
     try {
-      const res = await fetch(`${API_BASE_URL}/payments/host`, {
+      const [earningsRes, withdrawalsRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/payments/host`, { headers: { "Authorization": `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/payments/withdrawals`, { headers: { "Authorization": `Bearer ${token}` } })
+      ]);
+
+      if (earningsRes.ok && withdrawalsRes.ok) {
+        const earningsData = await earningsRes.json();
+        const withdrawalsData = await withdrawalsRes.json();
+        parkingView.renderHostEarnings(earningsData, withdrawalsData);
+        setupBackToDashboardListener();
+        
+        const submitBtn = document.getElementById("submit-withdrawal-btn");
+        if (submitBtn) {
+          submitBtn.onclick = handleWithdrawalSubmit;
+        }
+      }
+    } catch (err) { console.error("Error loading host earnings:", err); }
+  }
+
+  async function handleWithdrawalSubmit() {
+    const amount = parseInt(document.getElementById("withdraw-amount").value);
+    const paymentMethod = document.getElementById("withdraw-method").value;
+    const accountNumber = document.getElementById("withdraw-account").value.trim();
+    const errorEl = document.getElementById("withdrawal-error");
+    const successEl = document.getElementById("withdrawal-success");
+    const submitBtn = document.getElementById("submit-withdrawal-btn");
+
+    if (!amount || amount <= 0 || !accountNumber) {
+      errorEl.textContent = "Please enter a valid amount and account number.";
+      errorEl.style.display = "block";
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Submitting...";
+    errorEl.style.display = "none";
+
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/payments/withdraw`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, paymentMethod, accountNumber })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        successEl.textContent = "✅ Withdrawal request submitted successfully!";
+        successEl.style.display = "block";
+        setTimeout(() => loadHostEarnings(), 1500);
+      } else {
+        errorEl.textContent = data.message || "Failed to submit request";
+        errorEl.style.display = "block";
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Submit Request";
+      }
+    } catch (err) {
+      console.error(err);
+      errorEl.textContent = "Network error occurred";
+      errorEl.style.display = "block";
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Submit Request";
+    }
+  }
+
+  async function loadAdminWithdrawals() {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/withdrawals`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();
-        parkingView.renderHostEarnings(data);
+        parkingView.renderAdminWithdrawalApprovals(data);
         setupBackToDashboardListener();
-        
-        const withdrawBtn = document.getElementById("withdraw-funds-btn");
-        if (withdrawBtn) {
-          withdrawBtn.onclick = () => {
-            alert("Withdrawal request submitted! Our team will process it within 24 hours.");
-          };
-        }
+        setupLogoutButton();
+
+        document.querySelectorAll(".btn-approve-withdrawal").forEach(btn => {
+          btn.addEventListener("click", () => handleWithdrawalStatusUpdate(btn.dataset.id, "Approved"));
+        });
+        document.querySelectorAll(".btn-reject-withdrawal").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const notes = prompt("Reason for rejection:");
+            if (notes !== null) handleWithdrawalStatusUpdate(btn.dataset.id, "Rejected", notes);
+          });
+        });
       }
-    } catch (err) { console.error("Error loading host earnings:", err); }
+    } catch (err) { console.error("Error loading admin withdrawals:", err); }
+  }
+
+  async function handleWithdrawalStatusUpdate(id, status, adminNotes = "") {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/withdrawals/${id}`, {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ status, adminNotes })
+      });
+      if (res.ok) {
+        loadAdminWithdrawals();
+      } else {
+        const data = await res.json();
+        alert(data.message || "Failed to update status");
+      }
+    } catch (err) { console.error(err); }
   }
 
   // ── FR-20: NID Verification Logic ──

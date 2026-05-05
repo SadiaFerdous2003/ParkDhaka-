@@ -4,7 +4,12 @@ const notificationSchema = new mongoose.Schema({
   host: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: "User", 
-    required: true 
+    required: false 
+  },
+  driver: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: "User", 
+    required: false 
   },
   message: { 
     type: String, 

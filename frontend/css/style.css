@@ -935,6 +935,7 @@ header h1 {
 
 .status-Open { background: #d1fae5; color: #065f46; }
 .status-Closed { background: #fee2e2; color: #991b1b; }
+.status-Pending { background: #fff3cd; color: #856404; }
 
 /* ── Notifications Panel ── */
 .notifications-section {

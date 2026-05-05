@@ -290,17 +290,30 @@ exports.rescheduleBooking = async (req, res) => {
 // GET /api/bookings/host — all bookings for host's spaces
 exports.getHostBookings = async (req, res) => {
   try {
-    const hostId = req.user && req.user.userId;
-    const spaces = await GarageSpace.find({ host: hostId }).select("_id");
-    const spaceIds = spaces.map((s) => s._id);
+    const mongoose = require("mongoose");
+    const hostId = req.user.userId;
 
-    const bookings = await Booking.find({ garageSpace: { $in: spaceIds } })
-      .populate("garageSpace")
-      .populate("driver", "name email")
-      .sort({ date: -1 });
+    // Find all spaces owned by this host
+    const spaces = await GarageSpace.find({ host: hostId }).select("_id");
+    if (!spaces || spaces.length === 0) {
+      return res.json([]);
+    }
+    
+    const spaceIds = spaces.map(s => s._id);
+
+    const bookings = await Booking.find({ 
+      garageSpace: { $in: spaceIds } 
+    })
+    .populate({
+      path: "garageSpace",
+      select: "location price status"
+    })
+    .populate("driver", "name email phone")
+    .sort({ createdAt: -1 });
 
     res.json(bookings);
   } catch (err) {
+    console.error("getHostBookings error:", err);
     res.status(500).json({ message: err.message });
   }
 };

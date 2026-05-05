@@ -2,8 +2,10 @@ const Notification = require("../models/notification");
 
 exports.getNotifications = async (req, res) => {
   try {
-    const hostId = req.user && req.user.userId;
-    const notifications = await Notification.find({ host: hostId })
+    const userId = req.user && req.user.userId;
+    const notifications = await Notification.find({ 
+      $or: [ { host: userId }, { driver: userId } ]
+    })
       .sort({ timestamp: -1 })
       .limit(50);
     res.json(notifications);
@@ -14,10 +16,13 @@ exports.getNotifications = async (req, res) => {
 
 exports.markAsRead = async (req, res) => {
   try {
-    const hostId = req.user && req.user.userId;
+    const userId = req.user && req.user.userId;
     const { id } = req.params;
     
-    const notification = await Notification.findOne({ _id: id, host: hostId });
+    const notification = await Notification.findOne({ 
+      _id: id, 
+      $or: [ { host: userId }, { driver: userId } ]
+    });
     if (!notification) return res.status(404).json({ message: "Notification not found" });
 
     notification.readStatus = true;

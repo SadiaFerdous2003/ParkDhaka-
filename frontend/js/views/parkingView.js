@@ -152,6 +152,15 @@ const ParkingView = (function () {
           </div>
 
         </div>
+
+        <div class="card" style="margin-top: 30px; width: 100%;">
+          <h2 style="color: #102a43; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+            <span>🔔 Recent Notifications</span>
+          </h2>
+          <div id="notifications-list" class="notifications-container">
+            <p style="color: #829ab1; text-align: center; padding: 20px;">Loading notifications...</p>
+          </div>
+        </div>
       </div>
     `;
     containerEl.innerHTML = html;
@@ -185,6 +194,12 @@ const ParkingView = (function () {
 
         <h2 style="color: #102a43; margin-bottom: 20px; font-weight: 700;">Host Management Hub</h2>
         <div class="dashboard-content" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; width: 100%;">
+
+          <div class="card admin-nav-card" id="host-nav-bookings" style="cursor: pointer; text-align: center; border-bottom: 4px solid #00b569;">
+            <h3 style="font-size: 2.5rem; margin-bottom: 10px;">📅</h3>
+            <h3>Manage Reservations</h3>
+            <p>Track guest arrivals and confirm cash payments.</p>
+          </div>
 
           <div class="card admin-nav-card" id="host-nav-my-garages" style="cursor: pointer; text-align: center; border-bottom: 4px solid #00b569;">
             <h3 style="font-size: 2.5rem; margin-bottom: 10px;">🏗️</h3>
@@ -392,6 +407,70 @@ const ParkingView = (function () {
         if (panel) panel.style.display = "flex";
       });
     });
+  }
+
+  function renderHostBookings(bookings) {
+    let bookingsHtml = "<p class='no-bookings'>No reservations found for your spaces.</p>";
+    if (bookings && bookings.length > 0) {
+      bookingsHtml = `
+        <table class="spaces-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Guest</th>
+              <th>Garage Space</th>
+              <th>Duration</th>
+              <th>Total</th>
+              <th>Payment</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${bookings.map(b => `
+              <tr>
+                <td>
+                  <div style="font-weight: bold;">${new Date(b.date).toLocaleDateString()}</div>
+                  <div style="font-size: 0.8rem; color: #627d98;">${b.startTime} - ${b.endTime}</div>
+                </td>
+                <td>
+                  <div style="font-weight: bold;">${b.driver?.name || "Unknown"}</div>
+                  <div style="font-size: 0.8rem; color: #627d98;">${b.driver?.email || ""}</div>
+                </td>
+                <td>${b.garageSpace?.location?.address || "N/A"}</td>
+                <td>${b.duration}</td>
+                <td style="font-weight: bold;">৳${b.totalPrice}</td>
+                <td>
+                  <span class="status-label ${b.paymentStatus === 'paid' ? 'status-Open' : 'status-Pending'}">
+                    ${b.paymentStatus.toUpperCase()}
+                  </span>
+                  <div style="font-size: 0.7rem; color: #627d98; margin-top: 4px;">Method: ${b.paymentMethod}</div>
+                </td>
+                <td>
+                  ${b.paymentStatus === 'pending' ? `
+                    <button class="btn btn-primary btn-confirm-cash" data-id="${b._id}" style="padding: 6px 12px; font-size: 0.8rem; background: #00b569; border: none;">Mark as Paid</button>
+                  ` : '<span style="color: #00b569; font-weight: bold;">✓ Paid</span>'}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    containerEl.innerHTML = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>📅 Manage Reservations</h1>
+          <div class="header-actions">
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
+          </div>
+        </header>
+        <div class="bookings-container" style="overflow-x: auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+          ${bookingsHtml}
+        </div>
+      </div>
+    `;
   }
 
   // ── Host: Notifications page ──
@@ -661,6 +740,12 @@ const ParkingView = (function () {
             <h3 style="font-size: 2rem; margin-bottom: 10px;">⚙️</h3>
             <h3>System Performance</h3>
             <p>Monitor system health and metrics.</p>
+          </div>
+
+          <div class="card admin-nav-card" id="nav-withdrawal-approvals" style="cursor: pointer; text-align: center; border-bottom: 4px solid #00b569;">
+            <h3 style="font-size: 2rem; margin-bottom: 10px;">💰</h3>
+            <h3>Withdrawal Approvals</h3>
+            <p>Approve or reject host payout requests.</p>
           </div>
 
         </div>
@@ -1651,7 +1736,7 @@ const ParkingView = (function () {
     let historyHtml = '<p style="text-align: center; color: #627d98; padding: 40px;">No transaction history found.</p>';
     if (payments && payments.length > 0) {
       historyHtml = `
-        <table class="data-table">
+        <table class="spaces-table">
           <thead>
             <tr><th>Date</th><th>Transaction ID</th><th>Method</th><th>Amount</th><th>Status</th><th>Action</th></tr>
           </thead>
@@ -1687,13 +1772,14 @@ const ParkingView = (function () {
     `;
   }
 
-  function renderHostEarnings(stats) {
+  function renderHostEarnings(stats, withdrawals = []) {
     const containerEl = document.getElementById('app');
     const d = stats;
+    
     let historyHtml = '<p style="text-align: center; color: #627d98; padding: 20px;">No earnings history found.</p>';
     if (d.payments && d.payments.length > 0) {
       historyHtml = `
-        <table class="data-table">
+        <table class="spaces-table">
           <thead><tr><th>Date</th><th>Guest</th><th>Amount</th><th>Method</th></tr></thead>
           <tbody>
             ${d.payments.map(p => `
@@ -1708,27 +1794,144 @@ const ParkingView = (function () {
         </table>
       `;
     }
+
+    let withdrawalHistoryHtml = '<p style="text-align: center; color: #627d98; padding: 20px;">No withdrawal requests yet.</p>';
+    if (withdrawals && withdrawals.length > 0) {
+      withdrawalHistoryHtml = `
+        <table class="spaces-table">
+          <thead><tr><th>Date</th><th>Amount</th><th>Method</th><th>Account</th><th>Status</th></tr></thead>
+          <tbody>
+            ${withdrawals.map(w => `
+              <tr>
+                <td>${new Date(w.createdAt).toLocaleDateString()}</td>
+                <td style="font-weight: bold;">৳${w.amount}</td>
+                <td>${w.paymentMethod}</td>
+                <td>${w.accountNumber}</td>
+                <td><span class="status-label ${w.status === 'Approved' ? 'status-Open' : (w.status === 'Pending' ? 'status-Pending' : 'status-Closed')}">${w.status}</span></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
     containerEl.innerHTML = `
       <div class="dashboard">
         <header class="dashboard-header">
-          <h1>💸 Host Earnings</h1>
+          <h1>💸 Host Earnings & Withdrawals</h1>
           <div class="header-actions">
             <button class="btn btn-secondary" id="back-to-hub">Back to Hub</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
-        <div class="dashboard-content" style="margin-bottom: 30px;">
-          <div class="card"><h3>Total Lifetime Earnings</h3><p class="stat" style="color: #00b569;">৳${d.totalEarnings}</p></div>
-          <div class="card"><h3>Available for Withdrawal</h3><p class="stat" style="color: #667eea;">৳${d.availableBalance}</p></div>
+        
+        <div class="dashboard-content" style="margin-bottom: 30px; display: flex; gap: 20px; flex-wrap: wrap;">
+          <div class="card" style="flex: 1; min-width: 250px;">
+            <h3 style="color: #627d98; font-size: 0.9rem; text-transform: uppercase;">Total Lifetime Earnings</h3>
+            <p class="stat" style="color: #00b569; font-size: 2.5rem; margin: 10px 0;">৳${d.totalEarnings}</p>
+          </div>
+          <div class="card" style="flex: 1; min-width: 250px;">
+            <h3 style="color: #627d98; font-size: 0.9rem; text-transform: uppercase;">Available for Withdrawal</h3>
+            <p class="stat" style="color: #667eea; font-size: 2.5rem; margin: 10px 0;">৳${d.availableBalance}</p>
+            <small style="color: #829ab1;">(After 5% platform fee)</small>
+          </div>
         </div>
-        <div class="card" style="width: 100%; margin-bottom: 30px;">
+
+        <div class="card" style="width: 100%; margin-bottom: 30px; border-top: 4px solid #667eea;">
           <h2 style="color: #102a43; margin-bottom: 20px; font-size: 1.5rem;">Request Payout</h2>
-          <p style="color: #627d98; margin-bottom: 20px;">Withdraw your earnings to your linked mobile banking account (bKash/Nagad).</p>
-          <button id="withdraw-funds-btn" class="btn btn-primary" ${d.availableBalance <= 0 ? 'disabled' : ''}>Request Withdrawal</button>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;">
+            <div class="form-group">
+              <label>Withdrawal Amount (৳)</label>
+              <input type="number" id="withdraw-amount" placeholder="Enter amount" max="${d.availableBalance}" />
+            </div>
+            <div class="form-group">
+              <label>Payment Method</label>
+              <select id="withdraw-method">
+                <option value="bKash">bKash</option>
+                <option value="Nagad">Nagad</option>
+                <option value="Rocket">Rocket</option>
+                <option value="Bank">Bank Transfer</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Account Number / Phone</label>
+              <input type="text" id="withdraw-account" placeholder="Enter account/phone number" />
+            </div>
+          </div>
+          <button id="submit-withdrawal-btn" class="btn btn-primary" style="width: auto; padding: 12px 30px;" ${d.availableBalance <= 0 ? 'disabled' : ''}>Submit Request</button>
+          <div id="withdrawal-error" class="error-message" style="display:none; margin-top: 15px;"></div>
+          <div id="withdrawal-success" class="success-message" style="display:none; margin-top: 15px; color: #00b569;"></div>
         </div>
-        <div class="card" style="width: 100%; text-align: left;">
-          <h2 style="color: #102a43; margin-bottom: 20px; font-size: 1.5rem;">Earnings History</h2>
-          ${historyHtml}
+
+        <div style="display: grid; grid-template-columns: 1fr; gap: 30px;">
+          <div class="card" style="text-align: left; overflow-x: auto;">
+            <h2 style="color: #102a43; margin-bottom: 20px; font-size: 1.5rem;">Withdrawal History</h2>
+            ${withdrawalHistoryHtml}
+          </div>
+          <div class="card" style="text-align: left; overflow-x: auto;">
+            <h2 style="color: #102a43; margin-bottom: 20px; font-size: 1.5rem;">Earnings History</h2>
+            ${historyHtml}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderAdminWithdrawalApprovals(withdrawals) {
+    let listHtml = "<p style='text-align: center; color: #627d98; padding: 40px;'>No withdrawal requests found.</p>";
+    if (withdrawals && withdrawals.length > 0) {
+      listHtml = `
+        <table class="spaces-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Host</th>
+              <th>Amount</th>
+              <th>Method</th>
+              <th>Account</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${withdrawals.map(w => `
+              <tr>
+                <td>${new Date(w.createdAt).toLocaleDateString()}</td>
+                <td>
+                  <div style="font-weight: bold;">${w.host?.name || "Unknown"}</div>
+                  <div style="font-size: 0.8rem; color: #627d98;">${w.host?.email || ""}</div>
+                </td>
+                <td style="font-weight: bold; color: #102a43;">৳${w.amount}</td>
+                <td>${w.paymentMethod}</td>
+                <td><code>${w.accountNumber}</code></td>
+                <td><span class="status-label ${w.status === 'Approved' ? 'status-Open' : (w.status === 'Pending' ? 'status-Pending' : 'status-Closed')}">${w.status}</span></td>
+                <td>
+                  ${w.status === 'Pending' ? `
+                    <div style="display: flex; gap: 5px;">
+                      <button class="btn btn-primary btn-approve-withdrawal" data-id="${w._id}" style="padding: 6px 12px; font-size: 12px; background: #00b569;">Approve</button>
+                      <button class="btn btn-danger btn-reject-withdrawal" data-id="${w._id}" style="padding: 6px 12px; font-size: 12px;">Reject</button>
+                    </div>
+                  ` : (w.adminNotes ? `<small style="color: #627d98;">${w.adminNotes}</small>` : "—")}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    containerEl.innerHTML = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>💰 Withdrawal Approvals</h1>
+          <div class="header-actions">
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
+          </div>
+        </header>
+        <div class="card" style="width: 100%; text-align: left; overflow-x: auto;">
+          <h2 style="color: #102a43; margin-bottom: 20px; font-size: 1.5rem;">Payout Requests</h2>
+          ${listHtml}
         </div>
       </div>
     `;
@@ -1799,12 +2002,14 @@ const ParkingView = (function () {
     renderAdminRatings,
     renderAdminComplaints,
     renderAdminPerformance,
+    renderAdminWithdrawalApprovals,
     showError,
     renderFavoriteGarages,
     renderPaymentModal,
     renderReceipt,
     renderPaymentHistory,
     renderHostEarnings,
+    renderHostBookings,
     renderNidVerification,
     renderWeatherAlertsPage,
     renderAdminWeatherAlerts,

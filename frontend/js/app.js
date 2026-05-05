@@ -63,27 +63,32 @@ const App = (function () {
     if (isCollapsed) {
       mapWrapper.classList.remove("collapsed");
       toggleBtn.innerHTML = `<span class="toggle-icon">📍</span> Hide Nearby Map`;
-      
-      // Try to get GPS for better map centering
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            const { latitude, longitude } = pos.coords;
-            if (mapToggleData && typeof initGaragesMap === 'function') {
-              initGaragesMap(mapToggleData.spaces, mapToggleData.userRole, latitude, longitude);
+
+      // Wait for the CSS max-height transition (500ms) to fully complete
+      // BEFORE initialising Leaflet — otherwise the container is still 0px tall
+      // and Leaflet defaults to world-zoom level.
+      setTimeout(() => {
+        if (!mapToggleData) return;
+
+        const initMap = (lat, lng) => {
+          initGaragesMap(mapToggleData.spaces, mapToggleData.userRole, lat, lng);
+          // One extra invalidateSize after the map tiles settle
+          setTimeout(() => {
+            if (window.leafletMapInstance) {
+              window.leafletMapInstance.invalidateSize();
             }
-          },
-          () => {
-            if (mapToggleData && typeof initGaragesMap === 'function') {
-              initGaragesMap(mapToggleData.spaces, mapToggleData.userRole);
-            }
-          }
-        );
-      } else {
-        if (mapToggleData && typeof initGaragesMap === 'function') {
-          initGaragesMap(mapToggleData.spaces, mapToggleData.userRole);
+          }, 400);
+        };
+
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => initMap(pos.coords.latitude, pos.coords.longitude),
+            ()    => initMap(null, null)
+          );
+        } else {
+          initMap(null, null);
         }
-      }
+      }, 550); // 550ms > 500ms CSS transition
     } else {
       mapWrapper.classList.add("collapsed");
       toggleBtn.innerHTML = `<span class="toggle-icon">📍</span> Show Nearby Garages Map`;
@@ -95,6 +100,9 @@ const App = (function () {
   };
 
   function showAuthPage() {
+    // Stop any running live-update interval
+    stopLiveUpdate();
+    
     parkingView.renderAuthPage();
     setupAuthEventListeners();
   }
@@ -197,6 +205,9 @@ const App = (function () {
 
   // ── Dashboard ──
   async function loadDashboard(role) {
+    // Stop any running live-update interval
+    stopLiveUpdate();
+    
     const token = localStorage.getItem("token");
     if (!token) { showAuthPage(); return; }
 
@@ -319,6 +330,9 @@ const App = (function () {
   }
 
   async function loadSubscriptionPasses() {
+    // Stop any running live-update interval
+    stopLiveUpdate();
+    
     const token = localStorage.getItem("token");
     if (!token) { showAuthPage(); return; }
 
@@ -387,12 +401,20 @@ const App = (function () {
 
   let liveUpdateInterval = null;
 
+  // ── Stop any running garage-listing live-update interval ──
+  function stopLiveUpdate() {
+    if (liveUpdateInterval) {
+      clearInterval(liveUpdateInterval);
+      liveUpdateInterval = null;
+    }
+  }
+
   async function loadGarageListing() {
     const token = localStorage.getItem("token");
     if (!token) { showAuthPage(); return; }
 
     // Clear any existing interval
-    if (liveUpdateInterval) clearInterval(liveUpdateInterval);
+    stopLiveUpdate();
 
     // Helper to fetch and render
     const fetchAndRender = async (lat = null, lng = null) => {
@@ -410,7 +432,15 @@ const App = (function () {
           const backendUrl = API_BASE_URL.replace("/api", "");
           allSpaces = allSpaces.map(s => ({
             ...s,
-            images: (s.images || []).map(img => img.startsWith("/") ? `${backendUrl}${img}` : img)
+            images: (s.images || []).map(img => {
+              if (!img) return img;
+              // Already an absolute URL (http/https) — leave as-is
+              if (img.startsWith("http://") || img.startsWith("https://")) return img;
+              // Relative path with leading slash (e.g. /uploads/dish.png)
+              if (img.startsWith("/")) return `${backendUrl}${img}`;
+              // Bare filename (e.g. dish.png) — treat as /uploads/<filename>
+              return `${backendUrl}/uploads/${img}`;
+            })
           }));
         }
 
@@ -430,7 +460,12 @@ const App = (function () {
               const backendUrl = API_BASE_URL.replace("/api", "");
               mapSpaces = nearbySpaces.map(s => ({
                 ...s,
-                images: (s.images || []).map(img => img.startsWith("/") ? `${backendUrl}${img}` : img)
+                images: (s.images || []).map(img => {
+                  if (!img) return img;
+                  if (img.startsWith("http://") || img.startsWith("https://")) return img;
+                  if (img.startsWith("/")) return `${backendUrl}${img}`;
+                  return `${backendUrl}/uploads/${img}`;
+                })
               }));
             }
           } catch (e) {
@@ -580,6 +615,9 @@ const App = (function () {
   }
 
   function logout() {
+    // Stop any running live-update interval
+    stopLiveUpdate();
+    
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     currentUser = null;
@@ -682,95 +720,100 @@ const App = (function () {
     if (leafletMap) {
       leafletMap.remove();
       leafletMap = null;
+      window.leafletMapInstance = null;
     }
-    mapDiv.innerHTML = ""; 
+    mapDiv.innerHTML = "";
 
-    setTimeout(() => {
-      const dhakaLat = 23.8103, dhakaLng = 90.4125;
-      const lat = (userLat && !isNaN(userLat)) ? parseFloat(userLat) : dhakaLat;
-      const lng = (userLng && !isNaN(userLng)) ? parseFloat(userLng) : dhakaLng;
-      const center = [lat, lng];
+    // No inner delay needed — toggleMap already waits 550ms for the CSS
+    // max-height transition to complete before calling this function.
+    const dhakaLat = 23.8103, dhakaLng = 90.4125;
+    const lat = (userLat && !isNaN(userLat)) ? parseFloat(userLat) : dhakaLat;
+    const lng = (userLng && !isNaN(userLng)) ? parseFloat(userLng) : dhakaLng;
+    const center = [lat, lng];
 
-      leafletMap = L.map("garages-map", {
-        worldCopyJump: false,
-        zoomControl: true
-      }).setView(center, 15);
+    leafletMap = L.map("garages-map", {
+      worldCopyJump: false,
+      zoomControl: true
+    }).setView(center, 15);
 
-      // ── Use CartoDB Tiles (Cleaner and more reliable) ──
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '©OpenStreetMap ©CartoDB',
-        subdomains: 'abcd',
-        maxZoom: 20
-      }).addTo(leafletMap);
+    // Expose globally so toggleMap's extra invalidateSize can reach it
+    window.leafletMapInstance = leafletMap;
 
-      let hasMarkers = false;
-      const bounds = L.latLngBounds();
+    // ── Use CartoDB Tiles ──
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      attribution: '©OpenStreetMap ©CartoDB',
+      subdomains: 'abcd',
+      maxZoom: 20
+    }).addTo(leafletMap);
 
-      // User location marker (Blue Pulsing)
-      if (userLat && userLng) {
-        L.circleMarker(center, { radius: 8, fillColor: "#4285F4", color: "#fff", weight: 2, fillOpacity: 1 }).addTo(leafletMap).bindPopup("You are here");
-        bounds.extend(center);
-      }
+    let hasMarkers = false;
+    const markerLatLngs = []; // collect all points so bounds is always valid
 
-      const availableIcon = L.divIcon({ className: 'custom-marker available-marker', html: '<div class="marker-pin available"></div>', iconSize: [30, 42], iconAnchor: [15, 42], popupAnchor: [0, -35] });
-      const bookedIcon = L.divIcon({ className: 'custom-marker booked-marker', html: '<div class="marker-pin booked"></div>', iconSize: [30, 42], iconAnchor: [15, 42], popupAnchor: [0, -35] });
+    // User location marker
+    if (userLat && userLng) {
+      L.circleMarker(center, { radius: 8, fillColor: "#4285F4", color: "#fff", weight: 2, fillOpacity: 1 })
+        .addTo(leafletMap).bindPopup("You are here");
+      markerLatLngs.push(center);
+    }
 
-      spaces.forEach(s => {
-        if (s.location && s.location.lat && s.location.lng) {
-          const sLat = parseFloat(s.location.lat);
-          const sLng = parseFloat(s.location.lng);
-          if (isNaN(sLat) || isNaN(sLng)) return;
+    const availableIcon = L.divIcon({ className: 'custom-marker available-marker', html: '<div class="marker-pin available"></div>', iconSize: [30, 42], iconAnchor: [15, 42], popupAnchor: [0, -35] });
+    const bookedIcon   = L.divIcon({ className: 'custom-marker booked-marker',   html: '<div class="marker-pin booked"></div>',   iconSize: [30, 42], iconAnchor: [15, 42], popupAnchor: [0, -35] });
 
-          hasMarkers = true;
-          bounds.extend([sLat, sLng]);
+    spaces.forEach(s => {
+      if (s.location && s.location.lat && s.location.lng) {
+        const sLat = parseFloat(s.location.lat);
+        const sLng = parseFloat(s.location.lng);
+        if (isNaN(sLat) || isNaN(sLng)) return;
 
-          const hours = s.availableHours ? `${s.availableHours.start} - ${s.availableHours.end}` : "Not specified";
-          const isAvailable = s.status === "Open";
-          const navLink = `https://www.google.com/maps/dir/?api=1&destination=${sLat},${sLng}`;
-          const btnHtml = userRole === "Driver"
-            ? `<button class="btn-book-now-map" data-space-id="${s._id}" style="margin-top: 5px; padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; width: 100%;">📅 Book Now</button>`
-            : '';
+        hasMarkers = true;
+        markerLatLngs.push([sLat, sLng]);
 
-          const popupContent = `
-            <div style="min-width: 180px; padding: 5px;">
-              <strong style="font-size: 15px;">৳${s.price}/hour</strong>
-              <span style="color: ${isAvailable ? '#28a745' : '#dc3545'}; font-size: 12px; margin-left: 5px;">● ${isAvailable ? 'Available' : 'Booked'}</span><br/>
-              <div style="margin: 5px 0; font-size: 13px; color: #666;">${s.location.address || "No address"}</div>
-              <small>Hours: ${hours}</small><br/>
-              <div style="display: flex; gap: 5px; margin-top: 8px;">
-                <a href="${navLink}" target="_blank" style="flex: 1; padding: 6px; background: #4285f4; color: white; text-decoration: none; border-radius: 4px; font-size: 11px; text-align: center;">📍 Route</a>
-                ${btnHtml ? `<div style="flex: 1;">${btnHtml}</div>` : ''}
-              </div>
+        const hours = s.availableHours ? `${s.availableHours.start} - ${s.availableHours.end}` : "Not specified";
+        const isAvailable = s.status === "Open";
+        const navLink = `https://www.google.com/maps/dir/?api=1&destination=${sLat},${sLng}`;
+        const btnHtml = userRole === "Driver"
+          ? `<button class="btn-book-now-map" data-space-id="${s._id}" style="margin-top: 5px; padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; width: 100%;">📅 Book Now</button>`
+          : '';
+
+        const popupContent = `
+          <div style="min-width: 180px; padding: 5px;">
+            <strong style="font-size: 15px;">৳${s.price}/hour</strong>
+            <span style="color: ${isAvailable ? '#28a745' : '#dc3545'}; font-size: 12px; margin-left: 5px;">● ${isAvailable ? 'Available' : 'Booked'}</span><br/>
+            <div style="margin: 5px 0; font-size: 13px; color: #666;">${s.location.address || "No address"}</div>
+            <small>Hours: ${hours}</small><br/>
+            <div style="display: flex; gap: 5px; margin-top: 8px;">
+              <a href="${navLink}" target="_blank" style="flex: 1; padding: 6px; background: #4285f4; color: white; text-decoration: none; border-radius: 4px; font-size: 11px; text-align: center;">📍 Route</a>
+              ${btnHtml ? `<div style="flex: 1;">${btnHtml}</div>` : ''}
             </div>
-          `;
+        `;
 
-          const marker = L.marker([sLat, sLng], { icon: isAvailable ? availableIcon : bookedIcon }).addTo(leafletMap);
-          marker.bindPopup(popupContent);
-          marker.on('popupopen', () => {
-            const btn = document.querySelector(`.btn-book-now-map[data-space-id="${s._id}"]`);
-            if (btn) btn.addEventListener("click", () => handleBookNow(s._id));
-          });
-        }
-      });
-
-      if (hasMarkers) {
-        leafletMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
-      } else {
-        leafletMap.setView(center, 15);
+        const marker = L.marker([sLat, sLng], { icon: isAvailable ? availableIcon : bookedIcon }).addTo(leafletMap);
+        marker.bindPopup(popupContent);
+        marker.on('popupopen', () => {
+          const btn = document.querySelector(`.btn-book-now-map[data-space-id="${s._id}"]`);
+          if (btn) btn.addEventListener("click", () => handleBookNow(s._id));
+        });
       }
+    });
 
-      // ── Critical: Rapid-fire alignment sequence ──
-      // This forces Leaflet to 'wake up' and realize the container is now visible
-      const forceRefresh = () => {
-        if (leafletMap) leafletMap.invalidateSize();
-      };
-      
-      forceRefresh();
-      setTimeout(forceRefresh, 100);
-      setTimeout(forceRefresh, 300);
-      setTimeout(forceRefresh, 600);
-      setTimeout(forceRefresh, 1000);
-    }, 600);
+    // ── Apply initial view ──
+    if (hasMarkers && markerLatLngs.length > 0) {
+      leafletMap.fitBounds(L.latLngBounds(markerLatLngs), { padding: [50, 50], maxZoom: 15 });
+    } else {
+      leafletMap.setView(center, 15);
+    }
+
+    // ── Re-invalidate and re-fit after paint so zoom is correct ──
+    const refitBounds = () => {
+      if (!leafletMap) return;
+      leafletMap.invalidateSize();
+      if (hasMarkers && markerLatLngs.length > 0) {
+        leafletMap.fitBounds(L.latLngBounds(markerLatLngs), { padding: [50, 50], maxZoom: 15 });
+      }
+    };
+    setTimeout(refitBounds, 100);
+    setTimeout(refitBounds, 350);
+    setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 700);
   }
 
   // ── Location Picker Map for Garage Host (FR-4) ──
@@ -833,6 +876,8 @@ const App = (function () {
 
   // ── Garage Host Helpers ──
   async function loadAddGarageSpaceForm() {
+    // Stop any running live-update interval so it doesn't overwrite this page
+    stopLiveUpdate();
     // FR-20: Check NID requirement for hosts
     const token = localStorage.getItem("token");
     try {
@@ -893,6 +938,7 @@ const App = (function () {
 
   // ── Host: My Garages page ──
   async function loadHostManageSpaces() {
+    stopLiveUpdate();
     const token = localStorage.getItem("token");
     if (!token) { showAuthPage(); return; }
     try {
@@ -910,6 +956,7 @@ const App = (function () {
 
   // ── Host: Statistics page ──
   async function loadHostStats() {
+    stopLiveUpdate();
     const token = localStorage.getItem("token");
     if (!token) { showAuthPage(); return; }
     try {
@@ -927,6 +974,7 @@ const App = (function () {
 
   // ── Host: Notifications page ──
   async function loadHostNotifications() {
+    stopLiveUpdate();
     const token = localStorage.getItem("token");
     if (!token) { showAuthPage(); return; }
     try {
@@ -1013,6 +1061,19 @@ const App = (function () {
         res = await fetch(`${API_BASE_URL}/garage-spaces`, { method: "POST", headers: { "Authorization": `Bearer ${token}` }, body: formData });
       } else if (hasUrls) {
         const images = urlValue.split(",").map(s => s.trim()).filter(Boolean);
+        // Validate image URLs
+        const invalidUrls = images.filter(url => {
+          try {
+            const parsed = new URL(url);
+            return !/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(parsed.pathname) && !parsed.hostname.includes('i.imgur.com');
+          } catch {
+            return true;
+          }
+        });
+        if (invalidUrls.length > 0) {
+          if (errorEl) errorEl.textContent = "Invalid image URLs. Please use direct image links ending with .jpg, .png, etc., or from i.imgur.com";
+          return;
+        }
         res = await fetch(`${API_BASE_URL}/garage-spaces`, {
           method: "POST",
           headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
@@ -1204,6 +1265,9 @@ const App = (function () {
 
   // ── My Bookings (FR-7 / FR-8) ──
   async function loadMyBookings() {
+    // Stop any running live-update interval
+    stopLiveUpdate();
+    
     const token = localStorage.getItem("token");
     if (!token) { showAuthPage(); return; }
     try {
@@ -1370,6 +1434,9 @@ const App = (function () {
 
   // ── FR-21: Ratings ──
   async function loadMyRatings() {
+    // Stop any running live-update interval
+    stopLiveUpdate();
+    
     const token = localStorage.getItem("token");
     if (!token) { showAuthPage(); return; }
     try {
@@ -1539,6 +1606,9 @@ const App = (function () {
 
   // ── FR-22: Admin Panic Logs ──
   async function loadPanicLogs() {
+    // Stop any running live-update interval
+    stopLiveUpdate();
+    
     const token = localStorage.getItem("token");
     try {
       const res = await fetch(`${API_BASE_URL}/panic/logs`, {

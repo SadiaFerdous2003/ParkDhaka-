@@ -440,6 +440,7 @@ const ParkingView = (function () {
           <div class="form-group">
             <label>Image URLs (alternative)</label>
             <input type="text" id="space-image-urls" placeholder="http://... , http://..." />
+            <small class="helper-text">Enter direct image URLs (e.g., https://i.imgur.com/abc123.jpg). Album links like imgur.com/a/... won't display properly. For Imgur albums, right-click images and copy image address.</small>
           </div>
           <div class="form-group">
             <label>Price (৳/hour)</label>

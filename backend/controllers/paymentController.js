@@ -31,6 +31,7 @@ exports.processPayment = async (req, res) => {
     // Update Booking status
     booking.paymentStatus = "paid";
     booking.paymentMethod = paymentMethod || "Digital";
+    booking.status = "completed";
     await booking.save();
 
     // Notify Host about payment

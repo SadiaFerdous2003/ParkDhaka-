@@ -239,10 +239,16 @@ router.get(
   roleMiddleware(["Driver"]),
   subscriptionController.getMySubscription
 );
+router.put(
+  "/subscriptions/:id/cancel",
+  authMiddleware,
+  roleMiddleware(["Driver"]),
+  subscriptionController.cancelSubscription
+);
 
 // ── Ratings (FR-21) ──
-router.post("/ratings", authMiddleware, ratingController.submitRating);
-router.get("/ratings/my-pending", authMiddleware, roleMiddleware(["Driver"]), userController.getMyPendingRatings);
+router.post("/ratings", authMiddleware, roleMiddleware(["Driver", "GarageHost"]), ratingController.submitRating);
+router.get("/ratings/my-pending", authMiddleware, roleMiddleware(["Driver", "GarageHost"]), userController.getMyPendingRatings);
 router.get("/garage-spaces/:garageId/ratings", authMiddleware, ratingController.getGarageRatings);
 router.get("/users/:userId/ratings", authMiddleware, ratingController.getUserRatings);
 

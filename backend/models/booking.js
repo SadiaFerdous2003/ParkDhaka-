@@ -30,6 +30,14 @@ const bookingSchema = new mongoose.Schema({
   totalPrice: {
     type: Number // computed before save
   },
+  overstayFine: {
+    type: Number,
+    default: 0
+  },
+  overstayPaid: {
+    type: Boolean,
+    default: false
+  },
   status: {
     type: String,
     enum: ["confirmed", "cancelled", "completed"],

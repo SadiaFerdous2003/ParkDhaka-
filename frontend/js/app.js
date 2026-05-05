@@ -7,6 +7,7 @@ const App = (function () {
   let currentUser = null;
   let currentSpaces = []; // store fetched spaces for host
   let currentBookings = []; // store fetched bookings for driver
+  let currentPendingRatings = []; // store pending rating bookings for driver or host
   let hostListenerAdded = false;
 
   // ── Initialize ──
@@ -348,6 +349,11 @@ const App = (function () {
         setupBackToDashboardListener();
         const purchaseBtn = document.getElementById("purchase-pass-btn");
         if (purchaseBtn) purchaseBtn.addEventListener("click", handlePurchasePass);
+        
+        // Add event listeners for cancel buttons
+        document.querySelectorAll(".cancel-subscription-btn").forEach(btn => {
+          btn.addEventListener("click", handleCancelSubscription);
+        });
       } else if (response.status === 401) {
         logout();
       }
@@ -367,6 +373,34 @@ const App = (function () {
       const data = await response.json();
       if (response.ok) {
         if (msgEl) msgEl.innerHTML = "<span style='color: #28a745'>Purchase successful! Enjoy your pass.</span>";
+        setTimeout(() => loadSubscriptionPasses(), 1500);
+      } else {
+        if (msgEl) msgEl.innerHTML = `<span style='color: #dc3545'>Error: ${data.message}</span>`;
+      }
+    } catch (e) {
+      if (msgEl) msgEl.innerHTML = "<span style='color: #dc3545'>Network error.</span>";
+    }
+  }
+
+  async function handleCancelSubscription(event) {
+    const subscriptionId = event.target.getAttribute("data-subscription-id");
+    const token = localStorage.getItem("token");
+    const msgEl = document.getElementById("subscription-status-msg");
+    
+    if (!confirm("Are you sure you want to cancel this subscription?")) {
+      return;
+    }
+
+    if (msgEl) msgEl.innerHTML = "<span style='color: #007bff'>Cancelling subscription...</span>";
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/subscriptions/${subscriptionId}/cancel`, {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+      });
+      const data = await response.json();
+      if (response.ok) {
+        if (msgEl) msgEl.innerHTML = "<span style='color: #28a745'>Subscription cancelled successfully.</span>";
         setTimeout(() => loadSubscriptionPasses(), 1500);
       } else {
         if (msgEl) msgEl.innerHTML = `<span style='color: #dc3545'>Error: ${data.message}</span>`;
@@ -733,8 +767,11 @@ const App = (function () {
 
     leafletMap = L.map("garages-map", {
       worldCopyJump: false,
-      zoomControl: true
-    }).setView(center, 15);
+      zoomControl: true,
+      maxBounds: [[20.738, 88.007], [26.634, 92.673]], // Bangladesh bounds
+      minZoom: 7,
+      maxBoundsViscosity: 1.0
+    }).setView(center, 12);
 
     // Expose globally so toggleMap's extra invalidateSize can reach it
     window.leafletMapInstance = leafletMap;
@@ -800,7 +837,7 @@ const App = (function () {
     if (hasMarkers && markerLatLngs.length > 0) {
       leafletMap.fitBounds(L.latLngBounds(markerLatLngs), { padding: [50, 50], maxZoom: 15 });
     } else {
-      leafletMap.setView(center, 15);
+      leafletMap.setView(center, 12);
     }
 
     // ── Re-invalidate and re-fit after paint so zoom is correct ──
@@ -912,6 +949,7 @@ const App = (function () {
       "host-nav-add-garage":   loadAddGarageSpaceForm,
       "host-nav-statistics":   loadHostStats,
       "host-nav-notifications":loadHostNotifications,
+      "host-nav-weather-alerts": loadWeatherAlerts,
       "host-nav-ratings":      loadMyRatings,
       "host-nav-browse":       loadGarageListing,
       "host-nav-earnings":     loadHostEarnings,
@@ -995,6 +1033,102 @@ const App = (function () {
       const res = await fetch(`${API_BASE_URL}/notifications`, { headers: { "Authorization": `Bearer ${token}` } });
       if (res.ok) { const notifications = await res.json(); parkingView.renderNotifications(notifications); }
     } catch (err) { console.error("Error loading notifications:", err); }
+  }
+
+  async function loadWeatherAlerts() {
+    stopLiveUpdate();
+    const token = localStorage.getItem("token");
+    if (!token) { showAuthPage(); return; }
+    try {
+      const res = await fetch(`${API_BASE_URL}/weather/alerts`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const alerts = res.ok ? await res.json() : [];
+      parkingView.renderWeatherAlertsPage(alerts, currentUser?.role || "Driver");
+      setupBackToDashboardListener();
+      setupLogoutButton();
+    } catch (err) {
+      console.error("Error loading weather alerts:", err);
+      parkingView.renderWeatherAlertsPage([], currentUser?.role || "Driver");
+      setupBackToDashboardListener();
+      setupLogoutButton();
+    }
+  }
+
+  async function loadAdminWeatherAlerts() {
+    stopLiveUpdate();
+    const token = localStorage.getItem("token");
+    if (!token) { showAuthPage(); return; }
+    try {
+      const res = await fetch(`${API_BASE_URL}/weather/alerts`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const alerts = res.ok ? await res.json() : [];
+      parkingView.renderAdminWeatherAlerts(alerts);
+      setupBackToDashboardListener();
+      setupLogoutButton();
+      document.getElementById("create-weather-alert-btn")?.addEventListener("click", handleCreateWeatherAlert);
+      document.querySelectorAll(".btn-deactivate-weather-alert").forEach(btn => btn.addEventListener("click", () => handleDeactivateWeatherAlert(btn.dataset.id)));
+    } catch (err) {
+      console.error("Error loading admin weather alerts:", err);
+      parkingView.renderAdminWeatherAlerts([]);
+      setupBackToDashboardListener();
+      setupLogoutButton();
+    }
+  }
+
+  async function handleCreateWeatherAlert() {
+    const token = localStorage.getItem("token");
+    if (!token) { showAuthPage(); return; }
+
+    const title = document.getElementById("alert-title")?.value.trim();
+    const description = document.getElementById("alert-description")?.value.trim();
+    const area = document.getElementById("alert-area")?.value.trim();
+    const severity = document.getElementById("alert-severity")?.value;
+    const type = document.getElementById("alert-type")?.value;
+    const errorEl = document.getElementById("alert-form-error");
+    if (errorEl) errorEl.textContent = "";
+
+    if (!title || !description || !area || !severity || !type) {
+      if (errorEl) errorEl.textContent = "All alert fields are required.";
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/weather/alerts`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ title, description, area, severity, type })
+      });
+      if (res.ok) {
+        await loadAdminWeatherAlerts();
+      } else {
+        const data = await res.json();
+        if (errorEl) errorEl.textContent = data.message || "Could not create alert.";
+      }
+    } catch (err) {
+      console.error("Error creating weather alert:", err);
+      if (errorEl) errorEl.textContent = "Network error while creating alert.";
+    }
+  }
+
+  async function handleDeactivateWeatherAlert(alertId) {
+    const token = localStorage.getItem("token");
+    if (!token) { showAuthPage(); return; }
+    try {
+      const res = await fetch(`${API_BASE_URL}/weather/alerts/${alertId}/deactivate`, {
+        method: "PATCH",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+      });
+      if (res.ok) {
+        await loadAdminWeatherAlerts();
+      }
+    } catch (err) {
+      console.error("Error deactivating weather alert:", err);
+    }
   }
 
   async function handleToggleAvailability(checkbox) {
@@ -1445,6 +1579,7 @@ const App = (function () {
       });
       if (res.ok) {
         const pending = await res.json();
+        currentPendingRatings = pending;
         parkingView.renderMyRatings(pending, currentUser.role);
         setupBackToDashboardListener();
         setupRateButtons();
@@ -1456,7 +1591,9 @@ const App = (function () {
     document.querySelectorAll(".btn-rate-booking").forEach(btn => {
       btn.addEventListener("click", () => {
         const bookingId = btn.dataset.bookingId;
-        parkingView.renderRatingModal({ _id: bookingId }, currentUser.role);
+        const booking = currentPendingRatings.find((b) => b._id === bookingId);
+        if (!booking) return;
+        parkingView.renderRatingModal(booking, currentUser.role);
         setupRatingModalListeners(bookingId);
       });
     });
@@ -1499,11 +1636,25 @@ const App = (function () {
         }
 
         try {
+          const booking = currentPendingRatings.find((b) => b._id === bookingId);
+          if (!booking) {
+            errorEl.textContent = "Booking data not found.";
+            errorEl.style.display = "block";
+            return;
+          }
+
           const token = localStorage.getItem("token");
+          const payload = { bookingId, rating, review };
+          if (currentUser.role === "Driver") {
+            payload.toGarageId = booking.garageSpace?._id;
+          } else if (currentUser.role === "GarageHost") {
+            payload.toUserId = booking.driver?._id;
+          }
+
           const res = await fetch(`${API_BASE_URL}/ratings`, {
             method: "POST",
             headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ bookingId, rating, review })
+            body: JSON.stringify(payload)
           });
           const data = await res.json();
           if (res.ok) {
@@ -1708,6 +1859,7 @@ const App = (function () {
       "nav-monthly-passes": loadSubscriptionPasses,
       "nav-my-ratings": loadMyRatings,
       "nav-emergency-panic": loadPanicSection,
+      "nav-weather-alerts": loadWeatherAlerts,
       "nav-favorite-garages": loadFavoriteGarages,
       "nav-payment-history":  loadPaymentHistory,
       "nav-nid-verify":       loadNidVerification
@@ -1732,6 +1884,7 @@ const App = (function () {
       "nav-garage-approvals": loadAdminGarageApprovals,
       "nav-user-management": loadAdminUsers,
       "nav-booking-monitoring": loadAdminBookings,
+      "nav-weather-alerts": loadAdminWeatherAlerts,
       "nav-revenue-analytics": loadAdminRevenue,
       "nav-aggregated-ratings": loadAdminRatings,
       "nav-complaints": loadAdminComplaints,

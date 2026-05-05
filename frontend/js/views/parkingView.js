@@ -127,6 +127,12 @@ const ParkingView = (function () {
             <p>Configure trusted contacts and trigger SOS.</p>
           </div>
 
+          <div class="card admin-nav-card" id="nav-weather-alerts" style="cursor: pointer; text-align: center; border-bottom: 4px solid #eb3b5a;">
+            <h3 style="font-size: 2.5rem; margin-bottom: 10px;">🌧️</h3>
+            <h3>Weather Alerts</h3>
+            <p>View active flood and road condition alerts.</p>
+          </div>
+
           <div class="card admin-nav-card" id="nav-favorite-garages" style="cursor: pointer; text-align: center; border-bottom: 4px solid #ff4757;">
             <h3 style="font-size: 2.5rem; margin-bottom: 10px;">❤️</h3>
             <h3>Favorite Garages</h3>
@@ -202,6 +208,12 @@ const ParkingView = (function () {
             <h3 style="font-size: 2.5rem; margin-bottom: 10px;">🔔</h3>
             <h3>Notifications</h3>
             <p>View booking alerts and activity updates.</p>
+          </div>
+
+          <div class="card admin-nav-card" id="host-nav-weather-alerts" style="cursor: pointer; text-align: center; border-bottom: 4px solid #eb3b5a;">
+            <h3 style="font-size: 2.5rem; margin-bottom: 10px;">🌧️</h3>
+            <h3>Weather Alerts</h3>
+            <p>Check active flood and road condition warnings.</p>
           </div>
 
           <div class="card admin-nav-card" id="host-nav-ratings" style="cursor: pointer; text-align: center; border-bottom: 4px solid #ff9f43;">
@@ -421,6 +433,103 @@ const ParkingView = (function () {
     `;
   }
 
+  function renderWeatherAlertsPage(alerts, role) {
+    const hasAlerts = alerts && alerts.length > 0;
+    const contentHtml = hasAlerts ? alerts.map(alert => `
+      <div class="weather-alert-card severity-${alert.severity.toLowerCase()}" style="margin-bottom: 14px;">
+        <div style="display:flex; align-items:center; gap: 12px;">
+          <div style="font-size: 24px;">${alert.type === 'Flood' ? '🌊' : '🚧'}</div>
+          <div style="flex:1;">
+            <h3 style="margin:0; font-size: 16px;">${alert.title} — ${alert.area}</h3>
+            <p style="margin:6px 0 0; color:#535b62; font-size:14px;">${alert.description}</p>
+          </div>
+          <div style="font-weight:700; color:${alert.severity === 'Critical' ? '#d82b38' : '#f6ad55'}; font-size:12px; text-transform:uppercase;">${alert.severity}</div>
+        </div>
+      </div>
+    `).join('') : '<p class="no-bookings">No active weather alerts at the moment.</p>';
+
+    containerEl.innerHTML = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>🌧️ Weather Alerts</h1>
+          <div class="header-actions">
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Hub</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
+          </div>
+        </header>
+        <div class="dashboard-content" style="margin-bottom: 24px;">
+          <p style="margin:0; color:#334e68;">These alerts include flood warnings and road condition advisories during monsoon season. Drivers with active bookings in affected areas are notified automatically.</p>
+        </div>
+        <div class="bookings-container">${contentHtml}</div>
+      </div>
+    `;
+  }
+
+  function renderAdminWeatherAlerts(alerts) {
+    const hasAlerts = alerts && alerts.length > 0;
+    const alertsHtml = hasAlerts ? alerts.map(alert => `
+      <div class="weather-alert-card severity-${alert.severity.toLowerCase()}" style="margin-bottom: 16px; padding: 18px; border-radius: 12px; background:#fff; box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+        <div style="display:flex; justify-content:space-between; gap: 12px; align-items:center;">
+          <div>
+            <h3 style="margin:0; font-size: 16px;">${alert.title} — ${alert.area}</h3>
+            <p style="margin: 8px 0 0; color:#475569; font-size: 14px;">${alert.description}</p>
+            <small style="color:#7b8794;">Type: ${alert.type} · Severity: ${alert.severity}</small>
+          </div>
+          <button class="btn btn-danger btn-deactivate-weather-alert" data-id="${alert._id}" style="padding: 0.5rem 0.85rem; font-size: 0.95rem;">Deactivate</button>
+        </div>
+      </div>
+    `).join('') : '<p class="no-bookings">No active weather alerts are currently published.</p>';
+
+    containerEl.innerHTML = `
+      <div class="dashboard">
+        <header class="dashboard-header">
+          <h1>🌧️ Admin Weather Alerts</h1>
+          <div class="header-actions">
+            <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
+            <button id="logout-btn" class="btn btn-danger">Logout</button>
+          </div>
+        </header>
+        <section class="dashboard-content" style="margin-bottom: 24px;">
+          <div class="card" style="padding: 20px;">
+            <h3 style="margin-top: 0;">Publish New Alert</h3>
+            <div class="form-group">
+              <label>Title</label>
+              <input type="text" id="alert-title" placeholder="Flood alert for Gulshan" />
+            </div>
+            <div class="form-group">
+              <label>Area</label>
+              <input type="text" id="alert-area" placeholder="Gulshan, Dhaka" />
+            </div>
+            <div class="form-group">
+              <label>Type</label>
+              <select id="alert-type">
+                <option value="Flood">Flood</option>
+                <option value="RoadCondition">Road Condition</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Severity</label>
+              <select id="alert-severity">
+                <option value="Warning">Warning</option>
+                <option value="Critical">Critical</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Description</label>
+              <textarea id="alert-description" rows="3" placeholder="Describe the affected area and expected conditions."></textarea>
+            </div>
+            <div id="alert-form-error" class="error-message"></div>
+            <button id="create-weather-alert-btn" class="btn btn-primary">Publish Alert</button>
+          </div>
+        </section>
+        <div class="bookings-container">
+          <h2 style="margin-bottom: 16px;">Active Alerts</h2>
+          ${alertsHtml}
+        </div>
+      </div>
+    `;
+  }
+
   function renderAddGarageSpaceForm() {
     const html = `
       <div class="dashboard">
@@ -522,6 +631,12 @@ const ParkingView = (function () {
             <h3 style="font-size: 2rem; margin-bottom: 10px;">📋</h3>
             <h3>Booking Monitoring</h3>
             <p>View all platform bookings.</p>
+          </div>
+
+          <div class="card admin-nav-card" id="nav-weather-alerts" style="cursor: pointer; text-align: center; border-bottom: 4px solid #eb3b5a;">
+            <h3 style="font-size: 2rem; margin-bottom: 10px;">🌧️</h3>
+            <h3>Weather Alerts</h3>
+            <p>Manage active flood and road alerts.</p>
           </div>
 
           <div class="card admin-nav-card" id="nav-revenue-analytics" style="cursor: pointer; text-align: center;">
@@ -1006,6 +1121,9 @@ const ParkingView = (function () {
                 <p><strong>Total:</strong> ৳${b.totalPrice}</p>
                 <p><strong>Garage:</strong> ${spaceName}</p>
                 <p><strong>Payment:</strong> <span class="status-${b.paymentStatus === 'paid' ? 'Open' : 'Closed'}" style="padding: 2px 8px; border-radius: 4px; font-size: 0.8rem;">${b.paymentStatus.toUpperCase()} ${b.paymentMethod !== 'None' ? `(${b.paymentMethod})` : ''}</span></p>
+                ${b.overstayFine > 0 ? `
+                  <p style="margin-top: 10px; color: #d82b38;"><strong>Overstay Fine:</strong> ৳${b.overstayFine} (${b.overstayHours}h late)</p>
+                ` : ``}
               </div>
               <div class="booking-card-actions">
                 ${b.status === "confirmed" && b.paymentStatus === "pending" ? `
@@ -1097,10 +1215,33 @@ const ParkingView = (function () {
   }
 
   function renderSubscriptionPasses(data) {
-    const { hasSubscription, subscription } = data;
+    const { subscriptions } = data;
 
-    let passHtml = `
-      <div class="card" style="text-align: center; padding: 40px; margin: 0 auto; width: 100%; max-width: 500px;">
+    let subscriptionsHtml = '';
+    if (subscriptions && subscriptions.length > 0) {
+      subscriptionsHtml = `
+        <div class="card" style="margin-bottom: 30px; width: 100%; max-width: 600px;">
+          <h3 style="color: #28a745; margin-bottom: 20px;">Your Active Passes</h3>
+          ${subscriptions.map(sub => {
+            const expDate = new Date(sub.endDate).toLocaleDateString();
+            const startDate = new Date(sub.startDate).toLocaleDateString();
+            return `
+              <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: #f9f9f9;">
+                <p style="margin: 5px 0;"><strong>Pass ID:</strong> ${sub._id}</p>
+                <p style="margin: 5px 0;"><strong>Status:</strong> <span style="color: #28a745; text-transform: uppercase;">${sub.status}</span></p>
+                <p style="margin: 5px 0;"><strong>Start Date:</strong> ${startDate}</p>
+                <p style="margin: 5px 0;"><strong>Valid Until:</strong> ${expDate}</p>
+                <p style="margin: 5px 0;"><strong>Price:</strong> ৳${sub.price}</p>
+                <button class="btn btn-danger cancel-subscription-btn" data-subscription-id="${sub._id}" style="margin-top: 10px;">Cancel Pass</button>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    const purchaseCard = `
+      <div class="card" style="text-align: center; padding: 40px; width: 100%; max-width: 500px;">
         <h2>💳 Monthly Parking Pass</h2>
         <p style="font-size: 1.2rem; margin: 20px 0;">Get unlimited access to select parking spots for 30 days.</p>
         <p style="font-size: 2.5rem; font-weight: bold; color: #28a745; margin-bottom: 20px;">৳5000<span style="font-size: 1rem; color: #666;"> / month</span></p>
@@ -1108,20 +1249,6 @@ const ParkingView = (function () {
         <div id="subscription-status-msg" style="margin-top: 20px; font-weight: bold;"></div>
       </div>
     `;
-
-    if (hasSubscription && subscription) {
-      const expDate = new Date(subscription.endDate).toLocaleDateString();
-      passHtml = `
-        <div class="card" style="text-align: center; border: 2px solid #28a745; margin: 0 auto; width: 100%; max-width: 500px;">
-          <h2 style="color: #28a745;">✅ Active Monthly Pass</h2>
-          <p style="font-size: 1.2rem; margin: 15px 0;">You have an active subscription!</p>
-          <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; display: inline-block; margin-bottom: 20px; width: 100%; box-sizing: border-box;">
-            <p style="margin: 10px 0;"><strong>Status:</strong> <span style="color: #28a745; text-transform: uppercase;">${subscription.status}</span></p>
-            <p style="margin: 10px 0;"><strong>Valid Until:</strong> ${expDate}</p>
-          </div>
-        </div>
-      `;
-    }
 
     const html = `
       <div class="dashboard">
@@ -1132,8 +1259,9 @@ const ParkingView = (function () {
             <button id="logout-btn" class="btn btn-danger">Logout</button>
           </div>
         </header>
-        <div class="dashboard-content" style="justify-content: center; display: flex;">
-          ${passHtml}
+        <div class="dashboard-content" style="flex-direction: column; align-items: center;">
+          ${subscriptionsHtml}
+          ${purchaseCard}
         </div>
       </div>
     `;
@@ -1143,8 +1271,9 @@ const ParkingView = (function () {
   // ── FR-21: Rating Modal ──
   function renderRatingModal(booking, userRole) {
     const target = userRole === "Driver"
-      ? `৳${booking.garageSpace?.price}/hr garage`
+      ? booking.garageSpace?.location?.address || `৳${booking.garageSpace?.price}/hr garage`
       : booking.driver?.name || "Driver";
+    const title = userRole === "Driver" ? "Rate the Garage" : "Rate the Driver";
 
     const existing = document.getElementById("rating-modal-overlay");
     if (existing) existing.remove();
@@ -1153,7 +1282,7 @@ const ParkingView = (function () {
       <div class="booking-modal-overlay" id="rating-modal-overlay">
         <div class="booking-modal">
           <button class="modal-close" id="rating-modal-close">&times;</button>
-          <h2>⭐ Leave a Review</h2>
+          <h2>⭐ ${title}</h2>
           <p style="color:#555; margin-bottom:1rem;">Rate your experience with: <strong>${target}</strong></p>
 
           <div class="form-group">
@@ -1212,10 +1341,14 @@ const ParkingView = (function () {
       </div>`;
     }
 
+    const pageTitle = userRole === "Driver"
+      ? "⭐ Rate Your Garage Experiences"
+      : "⭐ Rate Your Drivers";
+
     containerEl.innerHTML = `
       <div class="dashboard">
         <header class="dashboard-header">
-          <h1>⭐ Rate Your Experiences</h1>
+          <h1>${pageTitle}</h1>
           <div class="header-actions">
             <button id="back-to-dashboard-btn" class="btn btn-secondary">Back to Dashboard</button>
             <button id="logout-btn" class="btn btn-danger">Logout</button>
@@ -1627,6 +1760,8 @@ const ParkingView = (function () {
     renderPaymentHistory,
     renderHostEarnings,
     renderNidVerification,
+    renderWeatherAlertsPage,
+    renderAdminWeatherAlerts,
     renderWeatherAlerts: (alerts) => {
       if (!alerts || alerts.length === 0) return "";
       return `

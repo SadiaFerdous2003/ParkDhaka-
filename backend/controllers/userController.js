@@ -94,22 +94,36 @@ exports.updateTrustedContact = async (req, res) => {
 exports.getMyPendingRatings = async (req, res) => {
   try {
     const userId = req.user.userId;
+    const userRole = req.user.role;
     const Booking = require("../models/booking");
     const Rating = require("../models/rating");
 
-    // Find all completed bookings for this driver
-    const bookings = await Booking.find({
-      driver: userId,
-      status: "completed"
-    }).populate("garageSpace");
+    let bookings = [];
 
-    // Filter out already-rated ones
+    if (userRole === "Driver") {
+      bookings = await Booking.find({
+        driver: userId,
+        status: "completed"
+      })
+        .populate("garageSpace")
+        .populate("driver", "name");
+    } else if (userRole === "GarageHost") {
+      const garageSpaces = await GarageSpace.find({ host: userId }).select("_id");
+      const spaceIds = garageSpaces.map((s) => s._id);
+
+      bookings = await Booking.find({
+        garageSpace: { $in: spaceIds },
+        status: "completed"
+      })
+        .populate("garageSpace")
+        .populate("driver", "name");
+    }
+
+    // Filter out already-rated bookings by this user
     const rated = await Rating.find({ fromUser: userId }).distinct("booking");
     const ratedIds = rated.map((id) => id.toString());
 
-    const pending = bookings.filter(
-      (b) => !ratedIds.includes(b._id.toString())
-    );
+    const pending = bookings.filter((b) => !ratedIds.includes(b._id.toString()));
 
     res.json(pending);
   } catch (error) {

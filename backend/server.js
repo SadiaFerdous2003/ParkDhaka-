@@ -44,4 +44,7 @@ app.use("/api", routes);
 
 const PORT = process.env.PORT || 5000;
 module.exports = app;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Start the server only when this file is executed directly (not when required by tests)
+if (require.main === module) {
+  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+}
